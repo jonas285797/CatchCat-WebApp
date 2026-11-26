@@ -5,7 +5,7 @@ import {
   FX_PRESETS,
   BADGE_PRESETS,
   resolveAdaptiveFX
-} from './presets.js?v=20261126d';
+} from './presets.js?v=20261126e';
 
 export const CARD_LOGICAL_W = 326;
 export const CARD_LOGICAL_H = 456;
@@ -857,7 +857,7 @@ export function renderCardFrontToCanvas(canvas, card, cutoutImg, scale = 2) {
     ctx.fillText(suffix, sx + sw * 0.5, sy + 8);
   }
 
-  // 4. Artwork Stage Window
+  // 4. Artwork Stage Window (背景、全息特效 FX 与箔纹都在动物主体下方裁切于原画框内)
   const artRect = { x: 20, y: 49, w: 286, h: 184 };
 
   // Bezel border around art window
@@ -867,48 +867,15 @@ export function renderCardFrontToCanvas(canvas, card, cutoutImg, scale = 2) {
 
   drawBackgroundStage(ctx, bgId, artRect, energy);
 
-  // Pet cutout clipped neatly to art window
+  // Adaptive FX & Foil Micro-prism Layer（位于原画框内、猫咪主体之下）
   const adaptive = resolveAdaptiveFX(card);
-  ctx.save();
-  roundPath(ctx, artRect.x, artRect.y, artRect.w, artRect.h, 8);
-  ctx.clip();
-
-  if (cutoutImg && cutoutImg.naturalWidth > 0 && cutoutImg.naturalHeight > 0) {
-    const iw = cutoutImg.naturalWidth;
-    const ih = cutoutImg.naturalHeight;
-    const baseFit = Math.min((artRect.w * 0.92) / iw, (artRect.h * 0.96) / ih);
-    const userScale = Math.max(0.55, Math.min(2.1, Number(card.subjectScale || 1)));
-    const drawW = iw * baseFit * userScale;
-    const drawH = ih * baseFit * userScale;
-
-    const ox = Number(card.subjectOffsetX || 0) * artRect.w;
-    const oy = Number(card.subjectOffsetY || 0) * artRect.h;
-
-    const dx = artRect.x + (artRect.w - drawW) * 0.5 + ox;
-    const dy = artRect.y + artRect.h - drawH + 4 + oy;
-
-    // Subtle subject drop shadow on stage
-    ctx.save();
-    ctx.shadowColor = 'rgba(0,0,0,0.42)';
-    ctx.shadowBlur = 12;
-    ctx.shadowOffsetY = 5;
-    ctx.drawImage(cutoutImg, dx, dy, drawW, drawH);
-    ctx.restore();
-  } else {
-    // Graceful placeholder silhouette while image loads
-    ctx.fillStyle = 'rgba(255,255,255,0.22)';
-    drawBadgeVector(ctx, 'paw', artRect.x + artRect.w * 0.5, artRect.y + artRect.h * 0.52, 34, 'rgba(255,255,255,0.34)');
-  }
-  ctx.restore();
-
-  // Adaptive FX & Foil Micro-prism Layer
   drawFXOverlay(ctx, fxId, adaptive.zone, foilIntensity, artRect, energy);
   drawFoilMicroTexture(ctx, artRect, foilIntensity);
 
   // Crisp inner stroke around art window
   roundPath(ctx, artRect.x, artRect.y, artRect.w, artRect.h, 8);
-  ctx.strokeStyle = 'rgba(255,255,255,0.38)';
-  ctx.lineWidth = 1;
+  ctx.strokeStyle = 'rgba(255,255,255,0.42)';
+  ctx.lineWidth = 1.1;
   ctx.stroke();
 
   // 5. Taxonomy Ribbon under Artwork
@@ -971,7 +938,6 @@ export function renderCardFrontToCanvas(canvas, card, cutoutImg, scale = 2) {
   cursorY += 16;
 
   // Attack Row
-  // Energy cost pips (up to 2)
   [0, 1].forEach((idx) => {
     const px = 29 + idx * 15;
     const py = cursorY + 1;
@@ -1060,6 +1026,54 @@ export function renderCardFrontToCanvas(canvas, card, cutoutImg, scale = 2) {
 
   ctx.textAlign = 'right';
   ctx.fillText(card.serialNumber || '001/165 ★', W - 22, 429);
+
+  // 10. 动物主体置顶层 (3D 破框跃出，置于原画边框、FX 特效、箔纹与版式之上，仅安全裁切在外金属框内缘)
+  ctx.save();
+  roundPath(ctx, plate.x, plate.y, plate.w, plate.h, plate.r);
+  ctx.clip();
+
+  if (cutoutImg && cutoutImg.naturalWidth > 0 && cutoutImg.naturalHeight > 0) {
+    const iw = cutoutImg.naturalWidth;
+    const ih = cutoutImg.naturalHeight;
+    const aspect = iw / Math.max(1, ih);
+    const maxPopW = artRect.w * 1.04;
+    let baseW;
+    let baseH;
+    if (aspect < 0.78) {
+      const rawH = artRect.h * 1.15;
+      baseW = Math.min(maxPopW, rawH * aspect);
+      baseH = baseW / aspect;
+    } else if (aspect < 1.12) {
+      const rawH = artRect.h * 1.13;
+      baseW = Math.min(maxPopW, rawH * aspect);
+      baseH = Math.min(artRect.h * 1.16, baseW / aspect);
+    } else {
+      baseW = maxPopW;
+      baseH = Math.min(artRect.h * 1.14, baseW / aspect);
+      baseW = baseH * aspect;
+    }
+
+    const userScale = Math.max(0.55, Math.min(2.1, Number(card.subjectScale || 1)));
+    const drawW = baseW * userScale;
+    const drawH = baseH * userScale;
+
+    const ox = Number(card.subjectOffsetX || 0) * artRect.w;
+    const oy = Number(card.subjectOffsetY || 0) * artRect.h;
+
+    const dx = artRect.x + (artRect.w - drawW) * 0.5 + ox;
+    const dy = artRect.y + artRect.h - drawH + 5 + oy;
+
+    ctx.save();
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.48)';
+    ctx.shadowBlur = 14;
+    ctx.shadowOffsetY = 6;
+    ctx.drawImage(cutoutImg, dx, dy, drawW, drawH);
+    ctx.restore();
+  } else {
+    ctx.fillStyle = 'rgba(255,255,255,0.22)';
+    drawBadgeVector(ctx, 'paw', artRect.x + artRect.w * 0.5, artRect.y + artRect.h * 0.52, 34, 'rgba(255,255,255,0.34)');
+  }
+  ctx.restore();
 
   ctx.restore();
 }

@@ -8,7 +8,7 @@ import {
   CAT_SNACKS,
   DOG_SNACKS,
   resolveAdaptiveFX
-} from './presets.js?v=20261126d';
+} from './presets.js?v=20261126e';
 import {
   loadImageCached,
   getEnergyConfig,
@@ -16,11 +16,11 @@ import {
   renderCardFrontToCanvas,
   renderCardBackToCanvas,
   exportCard4KBlob
-} from './cardRenderer.js?v=20261126d';
-import { WebCutoutEngine, preloadNeuralMatting } from './cutout.js?v=20261126d';
-import { getAISettings, saveAISettings, analyzePetSmart } from './ai.js?v=20261126d';
-import { loadAllCards, upsertCard, removeCard, getTrainerLevelInfo, grantTrainerXP } from './storage.js?v=20261126d';
-import { Card3DShowcase } from './showcase3d.js?v=20261126d';
+} from './cardRenderer.js?v=20261126e';
+import { WebCutoutEngine, preloadNeuralMatting } from './cutout.js?v=20261126e';
+import { getAISettings, saveAISettings, analyzePetSmart } from './ai.js?v=20261126e';
+import { loadAllCards, upsertCard, removeCard, getTrainerLevelInfo, grantTrainerXP } from './storage.js?v=20261126e';
+import { Card3DShowcase } from './showcase3d.js?v=20261126e';
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
