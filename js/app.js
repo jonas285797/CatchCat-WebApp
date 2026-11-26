@@ -911,6 +911,7 @@ function openCutoutModalWithImage(img) {
   state.cutoutEngine.loadImage(img, 640);
   state.cutoutLoadedSrc = true;
   dom.modalCutout.hidden = false;
+  dom.modalCutout.querySelector('.cutout-workspace')?.scrollTo(0, 0);
   runMattingAndRedraw();
 }
 
@@ -1158,6 +1159,7 @@ function bindEvents() {
   dom.btnReeditCutout.addEventListener('click', () => {
     if (state.cutoutLoadedSrc) {
       dom.modalCutout.hidden = false;
+      dom.modalCutout.querySelector('.cutout-workspace')?.scrollTo(0, 0);
       renderCutoutEditorCanvas();
     } else {
       dom.photoFileInput.click();

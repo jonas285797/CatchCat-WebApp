@@ -1156,7 +1156,7 @@ input[type="range"] {
   display: flex;
   align-items: flex-end;
   justify-content: center;
-  padding: 12px;
+  padding: 8px 10px max(10px, env(safe-area-inset-bottom));
 }
 
 .modal-backdrop[hidden] {
@@ -1166,14 +1166,15 @@ input[type="range"] {
 .modal-sheet {
   width: min(780px, 100%);
   max-height: 92vh;
-  overflow-y: auto;
+  max-height: 92dvh;
+  overflow: hidden;
   background: var(--bg);
   border: 1px solid var(--border-strong);
   border-radius: 22px;
-  padding: 16px;
+  padding: 12px 14px;
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 10px;
 }
 
 .modal-sheet--sm {
@@ -1181,6 +1182,7 @@ input[type="range"] {
 }
 
 .modal-head {
+  flex-shrink: 0;
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
@@ -1201,6 +1203,7 @@ input[type="range"] {
 .btn-icon-close {
   width: 34px;
   height: 34px;
+  flex-shrink: 0;
   border-radius: 50%;
   background: var(--panel);
   color: var(--ink-2);
@@ -1208,19 +1211,36 @@ input[type="range"] {
 }
 
 .cutout-workspace {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
   display: grid;
   grid-template-columns: 1fr;
-  gap: 14px;
+  align-content: start;
+  gap: 10px;
+  padding-right: 2px;
+}
+
+.modal-sheet > .form-block {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
 }
 
 .cutout-preview-wrap {
+  flex-shrink: 0;
   border-radius: var(--r-md);
   border: 1px solid var(--border);
   overflow: hidden;
   aspect-ratio: 1 / 1;
-  max-height: 360px;
+  max-height: 31vh;
+  max-height: 31dvh;
   margin: 0 auto;
-  width: min(360px, 100%);
+  width: min(230px, 58vw, 31dvh);
   background-color: #20252f;
   background-image:
     linear-gradient(45deg, #29303d 25%, transparent 25%),
@@ -1242,7 +1262,8 @@ input[type="range"] {
 .cutout-tools {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 7px;
+  padding-bottom: 4px;
 }
 
 .cutout-tool-btns {
@@ -1261,9 +1282,23 @@ input[type="range"] {
 }
 
 .modal-foot {
+  flex-shrink: 0;
   display: flex;
   justify-content: flex-end;
-  gap: 10px;
+  gap: 8px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+  background: var(--bg);
+}
+
+.modal-foot > button {
+  flex: 1 1 0;
+  min-width: 0;
+  white-space: nowrap;
+  font-size: 13px;
+  padding: 10px 12px;
+  justify-content: center;
+  text-align: center;
 }
 
 .toast {
@@ -1729,9 +1764,30 @@ input[type="range"] {
   }
   .modal-backdrop {
     align-items: center;
+    padding: 16px;
+  }
+  .modal-sheet {
+    padding: 16px;
+    gap: 14px;
   }
   .cutout-workspace {
     grid-template-columns: 1fr 260px;
+    gap: 14px;
+  }
+  .cutout-preview-wrap {
+    max-height: 360px;
+    width: min(360px, 100%);
+  }
+  .cutout-tools {
+    gap: 10px;
+  }
+  .modal-foot {
+    gap: 10px;
+  }
+  .modal-foot > button {
+    flex: 0 0 auto;
+    font-size: 14px;
+    padding: 10px 18px;
   }
 }
 
