@@ -5,7 +5,7 @@ import {
   FX_PRESETS,
   BADGE_PRESETS,
   resolveAdaptiveFX
-} from './presets.js';
+} from './presets.js?v=20261126d';
 
 export const CARD_LOGICAL_W = 326;
 export const CARD_LOGICAL_H = 456;

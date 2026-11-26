@@ -1216,9 +1216,8 @@ input[type="range"] {
   overflow-y: auto;
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
-  display: grid;
-  grid-template-columns: 1fr;
-  align-content: start;
+  display: flex;
+  flex-direction: column;
   gap: 10px;
   padding-right: 2px;
 }
@@ -1237,10 +1236,11 @@ input[type="range"] {
   border: 1px solid var(--border);
   overflow: hidden;
   aspect-ratio: 1 / 1;
-  max-height: 31vh;
-  max-height: 31dvh;
+  max-height: 30vh;
+  max-height: 30dvh;
   margin: 0 auto;
-  width: min(230px, 58vw, 31dvh);
+  width: min(220px, 56vw, 30vh);
+  width: min(220px, 56vw, 30dvh);
   background-color: #20252f;
   background-image:
     linear-gradient(45deg, #29303d 25%, transparent 25%),
@@ -1771,7 +1771,9 @@ input[type="range"] {
     gap: 14px;
   }
   .cutout-workspace {
+    display: grid;
     grid-template-columns: 1fr 260px;
+    align-items: start;
     gap: 14px;
   }
   .cutout-preview-wrap {

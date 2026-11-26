@@ -1,12 +1,84 @@
 /**
- * 抓喵大作战 Web - 端侧零依赖发丝精抠 + 手涂微调引擎
+ * 抓喵大作战 Web - 端侧 U^2-Netp 神经网络抠图 + Guided Filter 发丝微调引擎
  * 算法流水线:
- * 1. 上/侧边框多聚类背景色调采样 (避开底部中心宠身干扰)
- * 2. 色彩偏离度 + 2x2 降采样边缘势垒测地距离 (Geodesic Edge-Barrier)
- * 3. O(N) 可分离盒式导向滤波 (Separable Box Guided Filter)
- * 4. 主体邻近连通域筛选 + 游离残影清零 + 内部小孔洞修补
- * 5. 半透明发丝边缘去溢色 (Color Decontamination) + 手涂擦补通道
+ * 1. 优先使用本地部署的 ONNX U^2-Netp (320x320) 提取宠物/盆栽等前景主体显著性概率
+ * 2. 结合 O(N) 导向滤波沿原图亮度精修边缘毛发与胡须
+ * 3. 若当前环境不支持 WASM SIMD 或模型加载失败，自动降级为多聚类测地势垒算法
+ * 4. 支持实时滑块调参（零重跑推理）与手涂擦除/补毛通道
  */
+
+const AI_BASE_URL = new URL('../vendor/ai/', import.meta.url).href;
+let neuralSessionPromise = null;
+let neuralSessionReady = null;
+
+function supportsWasmSimd() {
+  try {
+    return typeof WebAssembly === 'object' &&
+      WebAssembly.validate(
+        new Uint8Array([
+          0, 97, 115, 109, 1, 0, 0, 0, 1, 5, 1, 96, 0, 1, 123, 3, 2, 1, 0, 10, 10, 1, 8, 0, 65, 0, 253, 15, 253, 98, 11
+        ])
+      );
+  } catch {
+    return false;
+  }
+}
+
+function loadScriptOnce(src) {
+  if (window.ort) return Promise.resolve(window.ort);
+  return new Promise((resolve, reject) => {
+    const existing = document.querySelector(`script[data-cat-ort="1"]`);
+    if (existing) {
+      existing.addEventListener('load', () => resolve(window.ort), { once: true });
+      existing.addEventListener('error', reject, { once: true });
+      return;
+    }
+    const s = document.createElement('script');
+    s.src = src;
+    s.async = true;
+    s.dataset.catOrt = '1';
+    s.onload = () => resolve(window.ort);
+    s.onerror = reject;
+    document.head.appendChild(s);
+  });
+}
+
+async function getNeuralSession() {
+  if (neuralSessionReady) return neuralSessionReady;
+  if (!supportsWasmSimd()) return null;
+  if (!neuralSessionPromise) {
+    neuralSessionPromise = (async () => {
+      try {
+        const ort = await loadScriptOnce(`${AI_BASE_URL}ort.wasm.min.js`);
+        if (!ort) return null;
+        ort.env.wasm.numThreads = 1;
+        ort.env.wasm.simd = true;
+        ort.env.wasm.wasmPaths = AI_BASE_URL;
+        const sess = await ort.InferenceSession.create(`${AI_BASE_URL}u2netp.onnx`, {
+          executionProviders: ['wasm']
+        });
+        neuralSessionReady = sess;
+        return sess;
+      } catch {
+        neuralSessionPromise = null;
+        return null;
+      }
+    })();
+  }
+  return neuralSessionPromise;
+}
+
+/**
+ * 预热 U^2-Netp 神经网络引擎（可在点击拍照或打开相册时后台并行加载）
+ */
+export function preloadNeuralMatting() {
+  if (neuralSessionReady) return Promise.resolve(true);
+  return getNeuralSession().then((s) => Boolean(s));
+}
+
+export function isNeuralModelReady() {
+  return Boolean(neuralSessionReady);
+}
 
 export class WebCutoutEngine {
   constructor() {
@@ -17,6 +89,7 @@ export class WebCutoutEngine {
     this.height = 0;
     this.baseAlpha = null;   // Float32Array [0..1]
     this.manualDelta = null; // Int8Array: 0=自动, +1=强制保留, -1=强制擦除
+    this.neuralSaliency = null; // Float32Array [0..1] 缓存当前照片的神经网络前景概率
   }
 
   /**
@@ -37,8 +110,213 @@ export class WebCutoutEngine {
     const imgData = this.workCtx.getImageData(0, 0, w, h);
     this.sourcePixels = new Uint8ClampedArray(imgData.data);
     this.baseAlpha = new Float32Array(w * h);
+    this.baseAlpha.fill(1.0);
     this.manualDelta = new Int8Array(w * h);
+    this.neuralSaliency = null;
     return { w, h };
+  }
+
+  /**
+   * 运行端侧 AI 神经网络精抠 + Guided Filter 发丝边缘修补（支持容差与羽化实时零重算微调）
+   */
+  async runSmartMatting({ sensitivity = 0.54, feather = 2, onStatus } = {}) {
+    if (!this.sourcePixels) return null;
+    const w = this.width;
+    const h = this.height;
+    const srcRef = this.sourcePixels;
+
+    if (this.hasSourceTransparency(srcRef, w, h)) {
+      for (let i = 0; i < w * h; i++) {
+        this.baseAlpha[i] = srcRef[i * 4 + 3] / 255.0;
+      }
+      return { mode: 'alpha', result: this.buildCompositeResult() };
+    }
+
+    if (!this.neuralSaliency) {
+      if (!neuralSessionReady) {
+        onStatus?.('首次正在加载端侧 U²-Net 神经网络精抠模型…');
+      } else {
+        onStatus?.('正在用端侧 U²-Net 神经网络识别主子轮廓…');
+      }
+
+      const session = await getNeuralSession();
+      if (srcRef !== this.sourcePixels) return null;
+
+      if (session && window.ort) {
+        try {
+          const S = 320;
+          const srcCanvas = document.createElement('canvas');
+          srcCanvas.width = w;
+          srcCanvas.height = h;
+          srcCanvas.getContext('2d').putImageData(new ImageData(new Uint8ClampedArray(srcRef), w, h), 0, 0);
+
+          const inpCanvas = document.createElement('canvas');
+          inpCanvas.width = S;
+          inpCanvas.height = S;
+          inpCanvas.getContext('2d').drawImage(srcCanvas, 0, 0, S, S);
+          const px = inpCanvas.getContext('2d', { willReadFrequently: true }).getImageData(0, 0, S, S).data;
+
+          const input = new Float32Array(3 * S * S);
+          const mean = [0.485, 0.456, 0.406];
+          const std = [0.229, 0.224, 0.225];
+          const planeSize = S * S;
+          for (let i = 0; i < planeSize; i++) {
+            const p4 = i * 4;
+            input[i] = (px[p4] / 255.0 - mean[0]) / std[0];
+            input[planeSize + i] = (px[p4 + 1] / 255.0 - mean[1]) / std[1];
+            input[2 * planeSize + i] = (px[p4 + 2] / 255.0 - mean[2]) / std[2];
+          }
+
+          const tensor = new window.ort.Tensor('float32', input, [1, 3, S, S]);
+          const outputs = await session.run({ [session.inputNames[0]]: tensor });
+          if (srcRef !== this.sourcePixels) return null;
+
+          const rawOut = outputs[session.outputNames[0]].data;
+          let minV = Infinity;
+          let maxV = -Infinity;
+          for (let i = 0; i < rawOut.length; i++) {
+            const v = rawOut[i];
+            if (v < minV) minV = v;
+            if (v > maxV) maxV = v;
+          }
+
+          if (maxV - minV >= 0.14) {
+            const span = Math.max(0.25, maxV - minV);
+            const probSmall = new Float32Array(planeSize);
+            for (let i = 0; i < planeSize; i++) {
+              probSmall[i] = Math.min(1, Math.max(0, (rawOut[i] - minV) / span));
+            }
+
+            // 双线性上采样到当前工作分辨率
+            const up = new Float32Array(w * h);
+            for (let y = 0; y < h; y++) {
+              const fy = ((y + 0.5) / h) * S - 0.5;
+              const y0 = Math.max(0, Math.min(S - 1, Math.floor(fy)));
+              const y1 = Math.max(0, Math.min(S - 1, y0 + 1));
+              const wy = Math.max(0, Math.min(1, fy - y0));
+              for (let x = 0; x < w; x++) {
+                const fx = ((x + 0.5) / w) * S - 0.5;
+                const x0 = Math.max(0, Math.min(S - 1, Math.floor(fx)));
+                const x1 = Math.max(0, Math.min(S - 1, x0 + 1));
+                const wx = Math.max(0, Math.min(1, fx - x0));
+                up[y * w + x] =
+                  (probSmall[y0 * S + x0] * (1 - wx) + probSmall[y0 * S + x1] * wx) * (1 - wy) +
+                  (probSmall[y1 * S + x0] * (1 - wx) + probSmall[y1 * S + x1] * wx) * wy;
+              }
+            }
+            this.neuralSaliency = up;
+          }
+        } catch {
+          this.neuralSaliency = null;
+        }
+      }
+    }
+
+    if (this.neuralSaliency) {
+      const result = this.applyNeuralSaliency(sensitivity, feather);
+      return { mode: 'neural', result };
+    }
+
+    const result = this.runAutoMatting({ sensitivity, feather });
+    return { mode: 'heuristic', result };
+  }
+
+  /**
+   * 用 Guided Filter 细化神经网络显著性掩膜，并响应容差/羽化滑块即时调整
+   */
+  applyNeuralSaliency(sensitivity = 0.54, feather = 2) {
+    const w = this.width;
+    const h = this.height;
+    const n = w * h;
+    const src = this.sourcePixels;
+
+    const luma = new Float32Array(n);
+    for (let i = 0; i < n; i++) {
+      const p4 = i * 4;
+      luma[i] = (0.299 * src[p4] + 0.587 * src[p4 + 1] + 0.114 * src[p4 + 2]) / 255.0;
+    }
+
+    const radius = Math.max(2, Math.round(feather + 2));
+    const refined = this.guidedFilterGray(luma, this.neuralSaliency, w, h, radius, 0.006);
+
+    const delta = sensitivity - 0.54;
+    const low = Math.min(0.42, Math.max(0.03, 0.13 - delta * 0.28));
+    const high = Math.min(0.90, Math.max(low + 0.08, 0.64 - delta * 0.44));
+    const span = high - low;
+
+    const cleaned = new Float32Array(n);
+    for (let i = 0; i < n; i++) {
+      let a = (refined[i] - low) / span;
+      if (a < 0) a = 0;
+      else if (a > 1) a = 1;
+      cleaned[i] = a;
+    }
+
+    // 仅清理极微小的孤立噪点，保留多宠与分离耳尖/尾尖
+    this.pruneTinySpecks(cleaned, w, h);
+    this.baseAlpha.set(cleaned);
+    return this.buildCompositeResult();
+  }
+
+  pruneTinySpecks(alpha, w, h) {
+    const n = w * h;
+    const labels = new Int32Array(n);
+    const compSizes = [0];
+    const queue = new Int32Array(n);
+    let label = 0;
+
+    for (let i = 0; i < n; i++) {
+      if (alpha[i] < 0.25 || labels[i] !== 0) continue;
+      label++;
+      let count = 0;
+      let head = 0, tail = 0;
+      queue[tail++] = i;
+      labels[i] = label;
+
+      while (head < tail) {
+        const cur = queue[head++];
+        count++;
+        const x = cur % w;
+        const y = (cur - x) / w;
+        if (x > 0 && labels[cur - 1] === 0 && alpha[cur - 1] >= 0.25) {
+          labels[cur - 1] = label;
+          queue[tail++] = cur - 1;
+        }
+        if (x < w - 1 && labels[cur + 1] === 0 && alpha[cur + 1] >= 0.25) {
+          labels[cur + 1] = label;
+          queue[tail++] = cur + 1;
+        }
+        if (y > 0 && labels[cur - w] === 0 && alpha[cur - w] >= 0.25) {
+          labels[cur - w] = label;
+          queue[tail++] = cur - w;
+        }
+        if (y < h - 1 && labels[cur + w] === 0 && alpha[cur + w] >= 0.25) {
+          labels[cur + w] = label;
+          queue[tail++] = cur + w;
+        }
+      }
+      compSizes.push(count);
+    }
+
+    if (label === 0) return;
+    let bestSize = 0;
+    for (let k = 1; k <= label; k++) {
+      if (compSizes[k] > bestSize) bestSize = compSizes[k];
+    }
+    const minSpeck = Math.max(18, Math.floor(bestSize * 0.008));
+    const keptBin = new Float32Array(n);
+    for (let i = 0; i < n; i++) {
+      const lb = labels[i];
+      if (lb > 0 && compSizes[lb] >= minSpeck) {
+        keptBin[i] = 1;
+      } else if (lb > 0) {
+        alpha[i] = 0;
+      }
+    }
+    const fringe = this.boxMean(keptBin, w, h, 4);
+    for (let i = 0; i < n; i++) {
+      if (labels[i] === 0 && fringe[i] <= 0.001) alpha[i] = 0;
+    }
   }
 
   /**

@@ -8,7 +8,7 @@ import {
   CAT_SNACKS,
   DOG_SNACKS,
   resolveAdaptiveFX
-} from './presets.js';
+} from './presets.js?v=20261126d';
 import {
   loadImageCached,
   getEnergyConfig,
@@ -16,11 +16,11 @@ import {
   renderCardFrontToCanvas,
   renderCardBackToCanvas,
   exportCard4KBlob
-} from './cardRenderer.js';
-import { WebCutoutEngine } from './cutout.js';
-import { getAISettings, saveAISettings, analyzePetSmart } from './ai.js';
-import { loadAllCards, upsertCard, removeCard, getTrainerLevelInfo, grantTrainerXP } from './storage.js';
-import { Card3DShowcase } from './showcase3d.js';
+} from './cardRenderer.js?v=20261126d';
+import { WebCutoutEngine, preloadNeuralMatting } from './cutout.js?v=20261126d';
+import { getAISettings, saveAISettings, analyzePetSmart } from './ai.js?v=20261126d';
+import { loadAllCards, upsertCard, removeCard, getTrainerLevelInfo, grantTrainerXP } from './storage.js?v=20261126d';
+import { Card3DShowcase } from './showcase3d.js?v=20261126d';
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
@@ -47,6 +47,8 @@ const state = {
   showcase: null,
   cutoutEngine: new WebCutoutEngine(),
   cutoutLoadedSrc: false,
+  cutoutRunId: 0,
+  activeMattingPromise: null,
   cutoutDrawRect: { x: 0, y: 0, w: 640, h: 640 },
   brushMode: 'erase',
   brushSize: 26,
@@ -894,17 +896,34 @@ function renderCutoutEditorCanvas() {
   ctx.drawImage(previewCanvas, drawX, drawY, drawW, drawH);
 }
 
-function runMattingAndRedraw() {
+async function runMattingAndRedraw() {
+  const runId = ++state.cutoutRunId;
   const sens = Number(dom.sliderCutoutSens.value || 54) / 100;
   const feather = Number(dom.sliderCutoutFeather.value || 2);
   dom.cutoutSensVal.textContent = `${Math.round(sens * 100)}%`;
   dom.cutoutFeatherVal.textContent = `${feather}px`;
 
   const t0 = performance.now();
-  state.cutoutEngine.runAutoMatting({ sensitivity: sens, feather });
+  const job = state.cutoutEngine.runSmartMatting({
+    sensitivity: sens,
+    feather,
+    onStatus: (msg) => {
+      if (runId === state.cutoutRunId) dom.cutoutStatusLine.textContent = msg;
+    }
+  });
+  state.activeMattingPromise = job;
+  const out = await job;
+  if (!out || runId !== state.cutoutRunId) return;
+
   renderCutoutEditorCanvas();
   const dt = Math.max(1, Math.round(performance.now() - t0));
-  dom.cutoutStatusLine.textContent = `已完成端侧导向滤波抠图 (${dt}ms) · 用画笔可直接擦除多余杂物或补回猫毛`;
+  const modeLabel =
+    out.mode === 'neural'
+      ? '端侧 AI 神经网络精抠'
+      : out.mode === 'alpha'
+        ? '原图透明通道'
+        : '端侧导向滤波抠图';
+  dom.cutoutStatusLine.textContent = `已完成${modeLabel} (${dt}ms) · 用画笔可直接擦除多余杂物或补回猫毛`;
 }
 
 function openCutoutModalWithImage(img) {
@@ -912,6 +931,7 @@ function openCutoutModalWithImage(img) {
   state.cutoutLoadedSrc = true;
   dom.modalCutout.hidden = false;
   dom.modalCutout.querySelector('.cutout-workspace')?.scrollTo(0, 0);
+  renderCutoutEditorCanvas();
   runMattingAndRedraw();
 }
 
@@ -1238,8 +1258,12 @@ function bindEvents() {
   });
 
   // Capture Tab controls
-  dom.btnEnableCamera?.addEventListener('click', () => startCameraStream(true));
+  dom.btnEnableCamera?.addEventListener('click', () => {
+    preloadNeuralMatting();
+    startCameraStream(true);
+  });
   dom.btnDemoCapture?.addEventListener('click', async () => {
+    preloadNeuralMatting();
     const pick = SAMPLE_CARDS[Math.floor(Math.random() * SAMPLE_CARDS.length)];
     const img = await loadImageCached(pick.cutoutSrc);
     if (img) openCutoutModalWithImage(img);
@@ -1248,8 +1272,14 @@ function bindEvents() {
     state.snackSpecies = state.snackSpecies === 'cat' ? 'dog' : 'cat';
     renderSnackGrid();
   });
-  dom.btnCaptureAlbum?.addEventListener('click', () => dom.photoFileInput.click());
-  dom.btnShutter?.addEventListener('click', captureFromVideoOrFallback);
+  dom.btnCaptureAlbum?.addEventListener('click', () => {
+    preloadNeuralMatting();
+    dom.photoFileInput.click();
+  });
+  dom.btnShutter?.addEventListener('click', () => {
+    preloadNeuralMatting();
+    captureFromVideoOrFallback();
+  });
   dom.btnCaptureAi?.addEventListener('click', () => {
     const cfg = getAISettings();
     saveAISettings({ endpoint: cfg.endpoint, localOnly: !cfg.localOnly });
@@ -1397,12 +1427,18 @@ function bindEvents() {
   };
 
   dom.btnCutoutUseFull.addEventListener('click', () => {
+    state.cutoutRunId += 1;
     const orig = state.cutoutEngine.exportUncroppedOriginal();
     if (!orig) return;
     finalizePhotoIntoStudio(orig, dom.chkAutoAi.checked);
   });
 
-  dom.btnCutoutConfirm.addEventListener('click', () => {
+  dom.btnCutoutConfirm.addEventListener('click', async () => {
+    if (state.activeMattingPromise) {
+      try {
+        await state.activeMattingPromise;
+      } catch {}
+    }
     const { tightDataUrl } = state.cutoutEngine.buildCompositeResult();
     finalizePhotoIntoStudio(tightDataUrl, dom.chkAutoAi.checked);
   });
