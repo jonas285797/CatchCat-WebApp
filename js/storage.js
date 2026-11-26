@@ -1,4 +1,4 @@
-import { SAMPLE_CARDS } from './presets.js?v=20261126e';
+import { SAMPLE_CARDS } from './presets.js?v=20261126f';
 
 const DB_NAME = 'CatchCatStudioDB';
 const DB_VERSION = 1;

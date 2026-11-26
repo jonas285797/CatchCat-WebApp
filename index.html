@@ -20,7 +20,7 @@
     }
   }
   </script>
-  <link rel="stylesheet" href="styles.css?v=20261126e">
+  <link rel="stylesheet" href="styles.css?v=20261126f">
 </head>
 <body>
   <div class="app-shell">
@@ -156,6 +156,27 @@
 
       <!-- ═══════════════════════ VIEW 1: 全定制制卡工坊 ═══════════════════════ -->
       <section class="view" id="view-studio" aria-label="全定制制卡工坊">
+        <!-- 手机端 iOS 风格顶栏（桌面端隐藏，沿用顶导航） -->
+        <div class="studio-ios-bar">
+          <div class="studio-ios-bar__title">
+            <strong>卡片全定制工坊</strong>
+            <span>自由混搭边框 · 场景 · 箔纹 · 图标 · 4K</span>
+          </div>
+          <div class="studio-ios-bar__actions">
+            <label class="studio-mini-pill" for="photo-file-input" id="btn-studio-upload">
+              <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.1" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="3"/><circle cx="9" cy="10" r="1.5"/><path d="m21 16-5-5L7 20"/></svg>
+              <span>传图</span>
+            </label>
+            <button type="button" class="studio-mini-pill" id="btn-toggle-sources">
+              <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.1" aria-hidden="true"><path d="m12 2 9 5-9 5-9-5 9-5Z"/><path d="m3 12 9 5 9-5"/><path d="m3 17 9 5 9-5"/></svg>
+              <span>素材</span>
+            </button>
+            <button type="button" class="studio-mini-dice" id="btn-randomize-ios" title="随机灵感" aria-label="随机搭配">
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="4"/><circle cx="8.5" cy="8.5" r="1.2" fill="currentColor"/><circle cx="15.5" cy="8.5" r="1.2" fill="currentColor"/><circle cx="12" cy="12" r="1.2" fill="currentColor"/><circle cx="8.5" cy="15.5" r="1.2" fill="currentColor"/><circle cx="15.5" cy="15.5" r="1.2" fill="currentColor"/></svg>
+            </button>
+          </div>
+        </div>
+
         <div class="studio-grid">
           <!-- 左栏：实时实体比例卡面舞台 + 核心动作 -->
           <div class="stage-column">
@@ -170,51 +191,76 @@
               </button>
             </div>
 
-            <div class="card-stage-box">
-              <div class="card-3d-wrap" id="studio-card-tilt">
-                <div class="card-flipper" id="studio-card-flipper">
-                  <div class="card-face card-face--front">
-                    <canvas id="studio-canvas-front" width="652" height="912"></canvas>
-                    <div class="card-sheen" id="studio-card-sheen"></div>
+            <div class="stage-hero-row">
+              <div class="card-stage-box">
+                <div class="card-3d-wrap" id="studio-card-tilt">
+                  <div class="card-flipper" id="studio-card-flipper">
+                    <div class="card-face card-face--front">
+                      <canvas id="studio-canvas-front" width="652" height="912"></canvas>
+                      <div class="card-sheen" id="studio-card-sheen"></div>
+                    </div>
+                    <div class="card-face card-face--back">
+                      <canvas id="studio-canvas-back" width="652" height="912"></canvas>
+                    </div>
                   </div>
-                  <div class="card-face card-face--back">
-                    <canvas id="studio-canvas-back" width="652" height="912"></canvas>
+                  <div class="framing-guide" id="studio-framing-guide" hidden>
+                    <span>拖动主子调整站位 · 滚轮/滑杆调大小</span>
                   </div>
                 </div>
-                <div class="framing-guide" id="studio-framing-guide" hidden>
-                  <span>拖动主子调整站位 · 滚轮/滑杆调大小</span>
+              </div>
+
+              <!-- 舞台核心动作舱（手机端竖排于右侧，桌面端横排于底部） -->
+              <div class="stage-actions">
+                <button type="button" class="btn-accent-3d" id="btn-enter-3d">
+                  <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.1" aria-hidden="true"><path d="M12 2 3 7v10l9 5 9-5V7l-9-5Z"/><path d="M12 22V12M21 7l-9 5M3 7l9 5"/></svg>
+                  <span class="desk-only">3D 展厅</span>
+                  <span class="mob-only">3D · 4K<br>展厅鉴赏</span>
+                </button>
+                <button type="button" class="btn-jade" id="btn-save-card">
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2Z"/><path d="M17 21v-8H7v8M7 3v5h8"/></svg>
+                  <span class="desk-only">存卡册</span>
+                  <span class="mob-only">存入图鉴</span>
+                </button>
+                <button type="button" class="btn-outline" id="btn-export-4k">
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.1" aria-hidden="true"><path d="M12 3v12m0 0 4-4m-4 4-4-4"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
+                  <span class="desk-only">4K PNG</span>
+                  <span class="mob-only">4K 存相册</span>
+                </button>
+                <div class="combo-summary-box" id="studio-combo-summary">
+                  <span>黑金曜石</span>
+                  <span>星云深空</span>
+                  <span>碎冰晶箔</span>
                 </div>
               </div>
             </div>
 
-            <!-- 快捷切换 4 只官方高精抠图猫样素材（零等待直接把玩） -->
+            <!-- 快捷切换 4 只官方高精抠图猫样素材（移动端默认由右上角“素材”切换显示） -->
             <div class="sample-strip" id="studio-sample-strip" aria-label="快捷猫样素材"></div>
-
-            <!-- 舞台核心动作舱 -->
-            <div class="stage-actions">
-              <button type="button" class="btn-accent-3d" id="btn-enter-3d">
-                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.1" aria-hidden="true"><path d="M12 2 3 7v10l9 5 9-5V7l-9-5Z"/><path d="M12 22V12M21 7l-9 5M3 7l9 5"/></svg>
-                <span>3D 展厅</span>
-              </button>
-              <button type="button" class="btn-jade" id="btn-save-card">
-                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2Z"/><path d="M17 21v-8H7v8M7 3v5h8"/></svg>
-                <span>存卡册</span>
-              </button>
-              <button type="button" class="btn-outline" id="btn-export-4k">
-                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.1" aria-hidden="true"><path d="M12 3v12m0 0 4-4m-4 4-4-4"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
-                <span>4K PNG</span>
-              </button>
-            </div>
           </div>
 
           <!-- 右栏：5 维全定制调色面板 -->
           <div class="controls-column">
             <div class="axis-tabs" role="tablist" aria-label="卡片定制维度">
-              <button type="button" class="axis-tab is-active" data-axis="border">边框</button>
-              <button type="button" class="axis-tab" data-axis="background">背景</button>
-              <button type="button" class="axis-tab" data-axis="fx">特效箔强</button>
-              <button type="button" class="axis-tab" data-axis="badge">图标·文案</button>
-              <button type="button" class="axis-tab" data-axis="framing">宠位·抠图</button>
+              <button type="button" class="axis-tab is-active" data-axis="border">
+                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="3"/><rect x="8" y="8" width="8" height="8" rx="1.5"/></svg>
+                <span>边框</span>
+              </button>
+              <button type="button" class="axis-tab" data-axis="background">
+                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2.5"/><circle cx="8.5" cy="9.5" r="1.5"/><path d="m21 16-5-5-8 8"/></svg>
+                <span>背景</span>
+              </button>
+              <button type="button" class="axis-tab" data-axis="fx">
+                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m12 3 1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9L12 3Z"/></svg>
+                <span>特效</span>
+              </button>
+              <button type="button" class="axis-tab" data-axis="badge">
+                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m3 18 2-10 4.5 4L12 5l2.5 7L19 8l2 10H3Z"/></svg>
+                <span>图标·文</span>
+              </button>
+              <button type="button" class="axis-tab" data-axis="framing">
+                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 3v18M3 12h18M9 6l3-3 3 3M9 18l3 3 3-3M6 9l-3 3 3 3M18 9l3 3-3 3"/></svg>
+                <span>宠位</span>
+              </button>
             </div>
 
             <div class="axis-body">
@@ -551,7 +597,7 @@
   <!-- 全局轻提示 -->
   <div class="toast" id="app-toast" role="status" aria-live="polite" hidden></div>
 
-  <script type="module" src="js/app.js?v=20261126e"></script>
+  <script type="module" src="js/app.js?v=20261126f"></script>
 </body>
 </html>
 

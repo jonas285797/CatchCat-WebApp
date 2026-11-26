@@ -8,7 +8,7 @@ import {
   CAT_SNACKS,
   DOG_SNACKS,
   resolveAdaptiveFX
-} from './presets.js?v=20261126e';
+} from './presets.js?v=20261126f';
 import {
   loadImageCached,
   getEnergyConfig,
@@ -16,11 +16,11 @@ import {
   renderCardFrontToCanvas,
   renderCardBackToCanvas,
   exportCard4KBlob
-} from './cardRenderer.js?v=20261126e';
-import { WebCutoutEngine, preloadNeuralMatting } from './cutout.js?v=20261126e';
-import { getAISettings, saveAISettings, analyzePetSmart } from './ai.js?v=20261126e';
-import { loadAllCards, upsertCard, removeCard, getTrainerLevelInfo, grantTrainerXP } from './storage.js?v=20261126e';
-import { Card3DShowcase } from './showcase3d.js?v=20261126e';
+} from './cardRenderer.js?v=20261126f';
+import { WebCutoutEngine, preloadNeuralMatting } from './cutout.js?v=20261126f';
+import { getAISettings, saveAISettings, analyzePetSmart } from './ai.js?v=20261126f';
+import { loadAllCards, upsertCard, removeCard, getTrainerLevelInfo, grantTrainerXP } from './storage.js?v=20261126f';
+import { Card3DShowcase } from './showcase3d.js?v=20261126f';
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
@@ -102,6 +102,10 @@ const dom = {
   studioBadge: $('#studio-card-badge'),
   studioHint: $('#studio-interaction-hint'),
   btnRandomize: $('#btn-randomize'),
+  btnRandomizeIos: $('#btn-randomize-ios'),
+  btnToggleSources: $('#btn-toggle-sources'),
+  btnStudioUpload: $('#btn-studio-upload'),
+  studioComboSummary: $('#studio-combo-summary'),
   cardTilt: $('#studio-card-tilt'),
   cardFlipper: $('#studio-card-flipper'),
   canvasFront: $('#studio-canvas-front'),
@@ -282,6 +286,14 @@ function syncControlsFromCurrentCard() {
   });
   const activeFx = FX_PRESETS.find((f) => f.id === (card.fxPreset || 'auto')) || FX_PRESETS[0];
   dom.fxLabel.textContent = activeFx.name;
+
+  if (dom.studioComboSummary) {
+    dom.studioComboSummary.innerHTML = `
+      <span>${activeBorder.name}</span>
+      <span>${activeBg.name}</span>
+      <span>${activeFx.name}</span>
+    `;
+  }
 
   // Badge tiles & metadata inputs
   $$('.icon-tile', dom.badgeGrid).forEach((el) => {
@@ -659,6 +671,7 @@ function captureFromVideoOrFallback() {
 // ═══════════════════════ NAVIGATION & PANES ═══════════════════════
 async function switchTab(tabName) {
   state.activeTab = tabName;
+  document.body.classList.toggle('tab-studio', tabName === 'studio');
 
   dom.navPills.forEach((btn) => btn.classList.toggle('is-active', btn.dataset.tab === tabName));
   dom.mobileTabs.forEach((btn) => btn.classList.toggle('is-active', btn.dataset.tab === tabName));
@@ -988,6 +1001,13 @@ function bindEvents() {
     syncControlsFromCurrentCard();
     renderStudioNow();
     showToast('已随机混搭一组高罕卡面皮肤');
+  });
+
+  dom.btnRandomizeIos?.addEventListener('click', () => dom.btnRandomize.click());
+  dom.btnStudioUpload?.addEventListener('click', () => preloadNeuralMatting());
+  dom.btnToggleSources?.addEventListener('click', () => {
+    const open = dom.sampleStrip.classList.toggle('is-open');
+    dom.btnToggleSources.classList.toggle('is-active', open);
   });
 
   // Save to CardDex

@@ -5,7 +5,7 @@ import {
   FX_PRESETS,
   BADGE_PRESETS,
   resolveAdaptiveFX
-} from './presets.js?v=20261126e';
+} from './presets.js?v=20261126f';
 
 export const CARD_LOGICAL_W = 326;
 export const CARD_LOGICAL_H = 456;
@@ -749,24 +749,34 @@ export function renderCardFrontToCanvas(canvas, card, cutoutImg, scale = 2) {
   }
   ctx.restore();
 
-  // 3. Header (Stage Pill + Card Name + Suffix + HP + Energy Orb)
+  // 3. Header (Metallic Silver Stage Trapezoid + Card Name + Suffix + HP + Energy Orb)
   const stageText = (card.stage || '基础形态').slice(0, 6);
-  ctx.font = `700 8.5px ${FONT_STACK}`;
-  const stageW = Math.min(62, Math.max(42, ctx.measureText(stageText).width + 12));
-  const stageX = 19;
-  const stageY = 21;
+  ctx.font = `800 8.2px ${FONT_STACK}`;
+  const stageW = Math.min(62, Math.max(46, ctx.measureText(stageText).width + 16));
+  const stageX = 18;
+  const stageY = 20.5;
+  const stageH = 17;
 
-  roundPath(ctx, stageX, stageY, stageW, 16, 8);
-  ctx.fillStyle = energy.bright ? 'rgba(255,255,255,0.88)' : 'rgba(255,255,255,0.18)';
+  ctx.save();
+  ctx.beginPath();
+  ctx.moveTo(stageX, stageY + 2);
+  ctx.quadraticCurveTo(stageX, stageY, stageX + 3, stageY);
+  ctx.lineTo(stageX + stageW, stageY);
+  ctx.lineTo(stageX + stageW - 6, stageY + stageH);
+  ctx.lineTo(stageX + 3, stageY + stageH);
+  ctx.quadraticCurveTo(stageX, stageY + stageH, stageX, stageY + stageH - 2);
+  ctx.closePath();
+  ctx.fillStyle = makeLinearGrad(ctx, stageX, stageY, stageX + stageW, stageY + stageH, ['#fcfdff', '#cfd7e3', '#a6b0bf', '#e8edf5']);
   ctx.fill();
-  ctx.strokeStyle = energy.bright ? 'rgba(0,0,0,0.14)' : 'rgba(255,255,255,0.28)';
-  ctx.lineWidth = 0.8;
+  ctx.strokeStyle = 'rgba(255,255,255,0.85)';
+  ctx.lineWidth = 0.85;
   ctx.stroke();
+  ctx.restore();
 
-  ctx.fillStyle = inkColor;
+  ctx.fillStyle = '#14171e';
   ctx.textBaseline = 'middle';
   ctx.textAlign = 'center';
-  ctx.fillText(stageText, stageX + stageW * 0.5, stageY + 8.5);
+  ctx.fillText(stageText, stageX + (stageW - 3) * 0.5, stageY + stageH * 0.5 + 0.4);
 
   // Right side: Energy Orb + HP
   const orbX = 294;
@@ -878,19 +888,19 @@ export function renderCardFrontToCanvas(canvas, card, cutoutImg, scale = 2) {
   ctx.lineWidth = 1.1;
   ctx.stroke();
 
-  // 5. Taxonomy Ribbon under Artwork
+  // 5. Metallic Cylinder Taxonomy Ribbon under Artwork
   const ribY = 238;
-  roundPath(ctx, 22, ribY, W - 44, 15, 7.5);
-  ctx.fillStyle = energy.bright ? 'rgba(255,255,255,0.82)' : 'rgba(255,255,255,0.14)';
+  roundPath(ctx, 21, ribY, W - 42, 15, 7.5);
+  ctx.fillStyle = makeLinearGrad(ctx, 21, ribY, 21, ribY + 15, ['#f3f6fa', '#c6cedb', '#e9edf4']);
   ctx.fill();
-  ctx.strokeStyle = energy.bright ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.22)';
+  ctx.strokeStyle = 'rgba(0,0,0,0.22)';
   ctx.lineWidth = 0.7;
   ctx.stroke();
 
   const shortNo = String(card.serialNumber || '001').split('/')[0];
   const ribLabel = `NO.${shortNo}  ${card.breedName || '中华田园猫'} · ${card.coatPattern || '特色毛色'}${card.tnrClipped ? ' · 已TNR' : ''}`;
-  ctx.fillStyle = inkColor;
-  ctx.font = `600 8.5px ${FONT_STACK}`;
+  ctx.fillStyle = '#181c24';
+  ctx.font = `700 8.3px ${FONT_STACK}`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.fillText(ribLabel.slice(0, 36), W * 0.5, ribY + 7.8);
@@ -975,29 +985,32 @@ export function renderCardFrontToCanvas(canvas, card, cutoutImg, scale = 2) {
   ctx.textAlign = 'left';
   ctx.fillText(atkName, atkX, cursorY + 1.5);
 
-  // 7. Stat Bar (Weakness / Resistance / Retreat)
+  // 7. Metallic Stat Bar (Weakness / Resistance / Retreat)
   const statY = 360;
-  roundPath(ctx, 20, statY, W - 40, 22, 6);
-  ctx.fillStyle = subtleSurface;
+  roundPath(ctx, 20, statY, W - 40, 21, 7);
+  ctx.fillStyle = makeLinearGrad(ctx, 20, statY, 20, statY + 21, ['#eff2f7', '#c5cddb', '#e5eaf2']);
   ctx.fill();
+  ctx.strokeStyle = 'rgba(0,0,0,0.18)';
+  ctx.lineWidth = 0.7;
+  ctx.stroke();
 
   ctx.textBaseline = 'middle';
-  ctx.font = `600 8.5px ${FONT_STACK}`;
-  ctx.fillStyle = secondaryInk;
+  ctx.font = `700 8.4px ${FONT_STACK}`;
+  ctx.fillStyle = '#1c202a';
   ctx.textAlign = 'left';
-  ctx.fillText('弱点  ×2', 30, statY + 11.2);
+  ctx.fillText('弱点  ×2', 30, statY + 10.8);
   ctx.textAlign = 'center';
-  ctx.fillText('抵抗  -30', W * 0.5, statY + 11.2);
+  ctx.fillText('抵抗力  -30', W * 0.5, statY + 10.8);
   ctx.textAlign = 'right';
-  ctx.fillText('撤退  ••', W - 30, statY + 11.2);
+  ctx.fillText('撤退  ••', W - 30, statY + 10.8);
 
   // Vertical hairline separators inside stat bar
-  ctx.strokeStyle = energy.bright ? 'rgba(0,0,0,0.12)' : 'rgba(255,255,255,0.14)';
-  ctx.lineWidth = 0.7;
+  ctx.strokeStyle = 'rgba(0,0,0,0.16)';
+  ctx.lineWidth = 0.75;
   [W * 0.36, W * 0.64].forEach((vx) => {
     ctx.beginPath();
-    ctx.moveTo(vx, statY + 5);
-    ctx.lineTo(vx, statY + 17);
+    ctx.moveTo(vx, statY + 4.5);
+    ctx.lineTo(vx, statY + 16.5);
     ctx.stroke();
   });
 
