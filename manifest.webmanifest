@@ -1,0 +1,17 @@
+{
+  "name": "抓喵大作战 · CatchCat Studio",
+  "short_name": "抓喵制卡",
+  "description": "上传萌宠照片智能抠图，自由组合全息卡牌边框、场景与特效，3D 鉴赏并导出 4K 珍藏闪卡",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#14171c",
+  "theme_color": "#14171c",
+  "icons": [
+    {
+      "src": "assets/app-icon.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
+

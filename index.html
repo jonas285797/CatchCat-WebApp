@@ -1,0 +1,557 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>抓喵大作战 · CatchCat 4K 全定制制卡台</title>
+  <meta name="description" content="CatchCat Web App：手机或桌面随时上传萌宠照精抠毛发，自由混搭边框、背景与全息箔纹特效，Three.js 3D 4K 微距鉴赏并导出 2934×4104 满版无边距闪卡。">
+  <meta name="theme-color" content="#14171c">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" type="image/png" href="assets/app-icon.png">
+  <link rel="apple-touch-icon" href="assets/app-icon.png">
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "./vendor/three/three.module.js",
+      "three/addons/controls/OrbitControls.js": "./vendor/three/OrbitControls.js",
+      "three/addons/environments/RoomEnvironment.js": "./vendor/three/RoomEnvironment.js"
+    }
+  }
+  </script>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="app-shell">
+    <!-- 顶部工作室导航栏（桌面端切页 + 全局传图/配置入口；手机端保留轻便顶栏，主导航归到底部拇指区） -->
+    <header class="topbar">
+      <div class="brand">
+        <img class="brand__icon" src="assets/app-icon.png" alt="CatchCat" width="34" height="34">
+        <div class="brand__meta">
+          <strong class="brand__name">抓喵大作战</strong>
+          <span class="brand__tag">4K CARD STUDIO · WEB</span>
+        </div>
+      </div>
+
+      <nav class="desktop-tabs" aria-label="主功能切换">
+        <button type="button" class="nav-pill is-active" data-tab="capture">
+          <span class="nav-pill__dot" aria-hidden="true"></span>
+          抓拍抓猫
+        </button>
+        <button type="button" class="nav-pill" data-tab="studio">
+          制卡工坊
+        </button>
+        <button type="button" class="nav-pill" data-tab="showcase">
+          3D · 4K 展厅
+        </button>
+        <button type="button" class="nav-pill" data-tab="dex">
+          主子卡册 <span class="nav-count" id="dex-count-desktop">0</span>
+        </button>
+      </nav>
+
+      <div class="topbar__actions">
+        <button type="button" class="btn-chip" id="btn-open-ai-settings" title="云端识宠配置">
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9c.26.6.82 1 1.51 1H21a2 2 0 1 1 0 4h-.09c-.69 0-1.25.4-1.51 1Z"/></svg>
+          <span class="hide-sm">识宠引擎</span>
+        </button>
+
+        <label class="btn-primary-sm upload-trigger" for="photo-file-input">
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.3" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+          传图制卡
+        </label>
+        <input id="photo-file-input" type="file" accept="image/*" hidden>
+        <input id="camera-fallback-input" type="file" accept="image/*" capture="environment" hidden>
+      </div>
+    </header>
+
+    <!-- 主内容滚动视图容器（各 Tab 独立视图，保持干净无串扰） -->
+    <main class="workspace" id="workspace">
+
+      <!-- ═══════════════════════ VIEW 0: 抓拍抓猫（默认首页 · 实时相机 + 零食投喂台） ═══════════════════════ -->
+      <section class="view is-active" id="view-capture" aria-label="抓拍抓猫">
+        <div class="capture-shell">
+          <div class="capture-viewport" id="capture-viewport">
+            <video id="capture-video" autoplay playsinline muted></video>
+
+            <!-- 当浏览器未开启实时流（如 HTTP 局域网/未授权/无摄像头）时的清晰兜底台 -->
+            <div class="capture-standby" id="capture-standby">
+              <div class="capture-standby__visual" aria-hidden="true">
+                <img src="assets/cat-orange.png" alt="">
+              </div>
+              <p class="capture-standby__msg" id="capture-standby-msg">正在准备相机取景器…</p>
+              <div class="capture-standby__actions">
+                <button type="button" class="btn-jade-sm" id="btn-enable-camera">开启实时相机</button>
+                <button type="button" class="btn-chip" id="btn-demo-capture">直接试拍示范猫</button>
+              </div>
+            </div>
+
+            <!-- 顶部透明悬浮状态栏 -->
+            <div class="capture-hud-top">
+              <div class="capture-pill capture-pill--buff" id="capture-buff-pill" hidden>
+                <span id="capture-buff-text">已投喂 HP+0</span>
+              </div>
+              <div class="capture-hud-right">
+                <div class="capture-pill capture-pill--lv" id="capture-level-pill">
+                  <span class="lv-dot" aria-hidden="true">✦</span>
+                  <strong id="capture-lv-text">Lv.1</strong>
+                </div>
+                <button type="button" class="capture-torch-btn" id="btn-toggle-torch" title="开关补光灯" hidden>
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.1" aria-hidden="true"><path d="M13 2 4 14h7l-1 8 10-12h-7l0-8Z"/></svg>
+                </button>
+              </div>
+            </div>
+
+            <!-- 取景对焦黄金角标框 -->
+            <div class="capture-reticle" id="capture-reticle">
+              <span class="reticle-corner reticle-corner--tl"></span>
+              <span class="reticle-corner reticle-corner--tr"></span>
+              <span class="reticle-corner reticle-corner--bl"></span>
+              <span class="reticle-corner reticle-corner--br"></span>
+              <div class="reticle-tip">
+                <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="3"/><circle cx="12" cy="12" r="2.2"/></svg>
+                <span>将萌宠置于框内</span>
+              </div>
+              <div class="reticle-cross" aria-hidden="true">+</div>
+            </div>
+
+            <!-- 零食飞入抛投特效层 -->
+            <div class="capture-fx-layer" id="capture-fx-layer" aria-hidden="true"></div>
+          </div>
+
+          <!-- 喵星 / 汪星投喂区 -->
+          <div class="capture-feed-bay">
+            <div class="capture-feed-head">
+              <div class="capture-feed-badge" id="capture-feed-badge">
+                <span class="feed-dot" aria-hidden="true"></span>
+                <span>喵星投喂区 · 投喂诱捕进入卡牌</span>
+              </div>
+              <button type="button" class="btn-species-switch" id="btn-toggle-snack-species">
+                换狗狗零食 🐶
+              </button>
+            </div>
+            <div class="snack-grid" id="capture-snack-grid"></div>
+          </div>
+
+          <!-- 底部大快门操控坞 -->
+          <div class="capture-shutter-dock">
+            <button type="button" class="shutter-side-btn" id="btn-capture-album">
+              <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="3"/><circle cx="9" cy="10" r="1.6"/><path d="m21 16-5-5L7 20"/></svg>
+              <span>相册制卡</span>
+            </button>
+
+            <button type="button" class="shutter-main-btn" id="btn-shutter" aria-label="抓拍抓猫">
+              <span class="shutter-main-btn__core">
+                <svg viewBox="0 0 24 24" width="26" height="26" fill="currentColor" aria-hidden="true"><path d="M9 4 7.17 6H4a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-3.17L15 4H9Zm3 13a4.5 4.5 0 1 1 0-9 4.5 4.5 0 0 1 0 9Z"/></svg>
+              </span>
+            </button>
+
+            <button type="button" class="shutter-side-btn is-on" id="btn-capture-ai">
+              <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m12 3 1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9L12 3Z"/></svg>
+              <span id="capture-ai-label">云端识宠</span>
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <!-- ═══════════════════════ VIEW 1: 全定制制卡工坊 ═══════════════════════ -->
+      <section class="view" id="view-studio" aria-label="全定制制卡工坊">
+        <div class="studio-grid">
+          <!-- 左栏：实时实体比例卡面舞台 + 核心动作 -->
+          <div class="stage-column">
+            <div class="stage-bar">
+              <div class="stage-bar__source">
+                <span class="status-badge" id="studio-card-badge">大橘 ex</span>
+                <span class="stage-hint" id="studio-interaction-hint">滑过/按住卡面可 3D 摆动 · 双击翻背</span>
+              </div>
+              <button type="button" class="btn-icon-round" id="btn-randomize" title="随机搭配一套稀有卡面">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="4"/><circle cx="8.5" cy="8.5" r="1.2" fill="currentColor"/><circle cx="15.5" cy="8.5" r="1.2" fill="currentColor"/><circle cx="12" cy="12" r="1.2" fill="currentColor"/><circle cx="8.5" cy="15.5" r="1.2" fill="currentColor"/><circle cx="15.5" cy="15.5" r="1.2" fill="currentColor"/></svg>
+                <span>灵感</span>
+              </button>
+            </div>
+
+            <div class="card-stage-box">
+              <div class="card-3d-wrap" id="studio-card-tilt">
+                <div class="card-flipper" id="studio-card-flipper">
+                  <div class="card-face card-face--front">
+                    <canvas id="studio-canvas-front" width="652" height="912"></canvas>
+                    <div class="card-sheen" id="studio-card-sheen"></div>
+                  </div>
+                  <div class="card-face card-face--back">
+                    <canvas id="studio-canvas-back" width="652" height="912"></canvas>
+                  </div>
+                </div>
+                <div class="framing-guide" id="studio-framing-guide" hidden>
+                  <span>拖动主子调整站位 · 滚轮/滑杆调大小</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- 快捷切换 4 只官方高精抠图猫样素材（零等待直接把玩） -->
+            <div class="sample-strip" id="studio-sample-strip" aria-label="快捷猫样素材"></div>
+
+            <!-- 舞台核心动作舱 -->
+            <div class="stage-actions">
+              <button type="button" class="btn-accent-3d" id="btn-enter-3d">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.1" aria-hidden="true"><path d="M12 2 3 7v10l9 5 9-5V7l-9-5Z"/><path d="M12 22V12M21 7l-9 5M3 7l9 5"/></svg>
+                <span>3D 展厅</span>
+              </button>
+              <button type="button" class="btn-jade" id="btn-save-card">
+                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2Z"/><path d="M17 21v-8H7v8M7 3v5h8"/></svg>
+                <span>存卡册</span>
+              </button>
+              <button type="button" class="btn-outline" id="btn-export-4k">
+                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.1" aria-hidden="true"><path d="M12 3v12m0 0 4-4m-4 4-4-4"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
+                <span>4K PNG</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- 右栏：5 维全定制调色面板 -->
+          <div class="controls-column">
+            <div class="axis-tabs" role="tablist" aria-label="卡片定制维度">
+              <button type="button" class="axis-tab is-active" data-axis="border">边框</button>
+              <button type="button" class="axis-tab" data-axis="background">背景</button>
+              <button type="button" class="axis-tab" data-axis="fx">特效箔强</button>
+              <button type="button" class="axis-tab" data-axis="badge">图标·文案</button>
+              <button type="button" class="axis-tab" data-axis="framing">宠位·抠图</button>
+            </div>
+
+            <div class="axis-body">
+              <!-- 1. 边框 -->
+              <div class="axis-pane is-active" id="pane-border">
+                <div class="pane-head">
+                  <h2>金属边框材质</h2>
+                  <span id="border-current-label">黑金曜石</span>
+                </div>
+                <div class="swatch-grid" id="border-grid"></div>
+              </div>
+
+              <!-- 2. 背景 -->
+              <div class="axis-pane" id="pane-background">
+                <div class="pane-head">
+                  <h2>画框主题场景</h2>
+                  <span id="bg-current-label">星云深空</span>
+                </div>
+                <div class="swatch-grid" id="background-grid"></div>
+              </div>
+
+              <!-- 3. 特效与箔强 -->
+              <div class="axis-pane" id="pane-fx">
+                <div class="slider-card">
+                  <div class="slider-card__row">
+                    <span>全息光学箔膜强度</span>
+                    <strong class="mono-val" id="foil-intensity-val">100%</strong>
+                  </div>
+                  <input type="range" id="foil-intensity-slider" min="0.2" max="1.6" step="0.05" value="1.0">
+                </div>
+                <div class="pane-head">
+                  <h2>能量与箔纹特效（严控不溢出卡框）</h2>
+                  <span id="fx-current-label">碎冰晶箔</span>
+                </div>
+                <div class="swatch-grid" id="fx-grid"></div>
+              </div>
+
+              <!-- 4. 图标与文案 -->
+              <div class="axis-pane" id="pane-badge">
+                <div class="sub-block">
+                  <h3>顶部能量圆章图标</h3>
+                  <div class="icon-grid" id="badge-grid"></div>
+                </div>
+
+                <div class="sub-block form-block">
+                  <div class="field-row">
+                    <label for="input-card-name">主子名称</label>
+                    <input type="text" id="input-card-name" maxlength="16" placeholder="输入卡牌主子昵称">
+                  </div>
+
+                  <div class="field-row two-col">
+                    <div>
+                      <label for="input-card-breed">品种标签</label>
+                      <input type="text" id="input-card-breed" maxlength="12" placeholder="如：中华橘猫 / 柯基">
+                    </div>
+                    <div>
+                      <label for="input-card-coat">相猫经花色</label>
+                      <input type="text" id="input-card-coat" maxlength="10" placeholder="如：金被银床">
+                    </div>
+                  </div>
+
+                  <div class="field-row">
+                    <div class="slider-card__row">
+                      <label for="input-card-hp">体力 HP</label>
+                      <strong class="mono-val" id="hp-val">280</strong>
+                    </div>
+                    <input type="range" id="input-card-hp" min="60" max="320" step="10" value="280">
+                  </div>
+
+                  <div class="field-row">
+                    <span class="field-label">稀有后缀</span>
+                    <div class="segmented" id="suffix-segment">
+                      <button type="button" data-suffix="">标准</button>
+                      <button type="button" data-suffix="ex" class="is-active">ex</button>
+                      <button type="button" data-suffix="VSTAR">VSTAR</button>
+                    </div>
+                  </div>
+
+                  <div class="field-row">
+                    <span class="field-label">能量属性系别</span>
+                    <div class="energy-pills" id="energy-pills"></div>
+                  </div>
+
+                  <div class="field-row two-col">
+                    <div>
+                      <label for="input-atk-name">招牌绝招</label>
+                      <input type="text" id="input-atk-name" maxlength="14" placeholder="招牌招式名">
+                    </div>
+                    <div>
+                      <label for="input-atk-dmg">招式威力</label>
+                      <input type="number" id="input-atk-dmg" min="10" max="300" step="10" value="180">
+                    </div>
+                  </div>
+
+                  <div class="field-row">
+                    <label for="input-card-flavor">图鉴签名语录</label>
+                    <input type="text" id="input-card-flavor" maxlength="48" placeholder="记录这只主子的可爱瞬间…">
+                  </div>
+                </div>
+              </div>
+
+              <!-- 5. 宠位与抠图调校 -->
+              <div class="axis-pane" id="pane-framing">
+                <div class="adaptive-pill" id="adaptive-fx-card">
+                  <div>
+                    <strong id="adaptive-zone-title">中心破框光阵</strong>
+                    <p id="adaptive-zone-hint">拖动左侧卡面上的主子或调整下方滑杆，特效会自动避脸切换分区</p>
+                  </div>
+                  <button type="button" class="btn-chip" id="btn-reset-framing">复位</button>
+                </div>
+
+                <div class="slider-card">
+                  <div class="slider-card__row">
+                    <span>横向位置 X</span>
+                    <strong class="mono-val" id="offset-x-val">0%</strong>
+                  </div>
+                  <input type="range" id="slider-offset-x" min="-0.40" max="0.40" step="0.01" value="0">
+
+                  <div class="slider-card__row">
+                    <span>纵向高度 Y</span>
+                    <strong class="mono-val" id="offset-y-val">0%</strong>
+                  </div>
+                  <input type="range" id="slider-offset-y" min="-0.40" max="0.40" step="0.01" value="0">
+
+                  <div class="slider-card__row">
+                    <span>主体大小倍率</span>
+                    <strong class="mono-val" id="scale-val">1.00×</strong>
+                  </div>
+                  <input type="range" id="slider-scale" min="0.70" max="1.85" step="0.02" value="1.0">
+                </div>
+
+                <div class="cutout-reopen-row">
+                  <button type="button" class="btn-outline" id="btn-reedit-cutout" style="width:100%">
+                    打开抠图修补画笔 / 重选照片
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ═══════════════════════ VIEW 2: Three.js 高级 3D · 4K 展厅 ═══════════════════════ -->
+      <section class="view" id="view-showcase" aria-label="高级 3D 4K 展厅">
+        <div class="showcase-stage">
+          <div class="showcase-hud-top">
+            <div class="showcase-title">
+              <strong id="showcase-card-title">大橘 ex</strong>
+              <span class="badge-4k">3D PBR · 4K TEXTURE</span>
+            </div>
+            <button type="button" class="btn-primary-sm" id="btn-3d-export-4k">导出 4K 存图</button>
+          </div>
+
+          <div class="webgl-container" id="webgl-container">
+            <canvas id="three-canvas"></canvas>
+            <!-- 若无 WebGL 或离线，提供等比平滑降级交互 2.5D 卡 -->
+            <div class="fallback-3d" id="three-fallback" hidden>
+              <div class="fallback-slab" id="three-fallback-stage">
+                <img id="three-fallback-img" alt="卡牌 3D 预览">
+              </div>
+              <p id="three-fallback-caption">2.5D 交互预览模式 · 拖动或点击下方机位与微距</p>
+            </div>
+            <div class="webgl-loading" id="webgl-loading" hidden>
+              <div class="spinner"></div>
+              <span>正在烘焙正反双面全息 3D 贴图…</span>
+            </div>
+          </div>
+
+          <div class="showcase-dock">
+            <div class="dock-row">
+              <div class="dock-group">
+                <button type="button" class="dock-btn is-active" data-cam="front">正面全景</button>
+                <button type="button" class="dock-btn" data-cam="edge">3D 侧棱</button>
+                <button type="button" class="dock-btn" data-cam="back">背面档案</button>
+              </div>
+              <div class="dock-group">
+                <button type="button" class="dock-btn is-on" id="btn-toggle-spin">自动微摆</button>
+                <button type="button" class="dock-btn is-on" id="btn-toggle-slab">亚克力卡砖</button>
+              </div>
+            </div>
+            <div class="dock-row dock-row--split">
+              <div class="dock-group">
+                <span class="dock-label">微距</span>
+                <button type="button" class="dock-pill is-active" data-zoom="1">1×</button>
+                <button type="button" class="dock-pill" data-zoom="1.8">1.8×</button>
+                <button type="button" class="dock-pill" data-zoom="3">3×</button>
+                <button type="button" class="dock-pill" data-zoom="4.5">4.5×</button>
+              </div>
+              <div class="dock-group">
+                <span class="dock-label">布光</span>
+                <button type="button" class="dock-pill is-active" data-light="studio">棚拍</button>
+                <button type="button" class="dock-pill" data-light="warm">暖金</button>
+                <button type="button" class="dock-pill" data-light="aurora">极光</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ═══════════════════════ VIEW 3: 主子卡册（本地持久化存档） ═══════════════════════ -->
+      <section class="view" id="view-dex" aria-label="主子卡册">
+        <div class="dex-wrap">
+          <div class="dex-header">
+            <div>
+              <h2>主子闪卡收藏馆</h2>
+              <p id="dex-stats-line">已保存在本机浏览器 · 支持随时二次编辑与 4K 导出</p>
+            </div>
+            <div class="dex-backup-actions">
+              <button type="button" class="btn-chip" id="btn-backup-export">备份卡册</button>
+              <label class="btn-chip" for="backup-file-input">导入恢复</label>
+              <input id="backup-file-input" type="file" accept="application/json" hidden>
+            </div>
+          </div>
+
+          <div class="dex-toolbar">
+            <input type="search" id="dex-search" placeholder="搜索昵称、品种、花色…">
+            <div class="dex-energy-filter" id="dex-energy-filter"></div>
+          </div>
+
+          <div class="dex-grid" id="dex-grid"></div>
+        </div>
+      </section>
+    </main>
+
+    <!-- 手机端底部原生态浮动 TabBar（4 个核心大入口） -->
+    <nav class="mobile-tabbar" aria-label="底部主导航">
+      <button type="button" class="m-tab is-active" data-tab="capture">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 8V6a2 2 0 0 1 2-2h2M16 4h2a2 2 0 0 1 2 2v2M4 16v2a2 2 0 0 0 2 2h2M16 20h2a2 2 0 0 0 2-2v-2"/><circle cx="12" cy="12" r="3"/></svg>
+        <span>抓拍抓猫</span>
+      </button>
+      <button type="button" class="m-tab" data-tab="studio">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m15 4-9.5 9.5a2.1 2.1 0 0 0 3 3L18 7a2.1 2.1 0 1 0-3-3Z"/><path d="M19 14v5M16.5 16.5h5"/></svg>
+        <span>制卡工坊</span>
+      </button>
+      <button type="button" class="m-tab" data-tab="showcase">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 2 3 7v10l9 5 9-5V7l-9-5Z"/><path d="M12 22V12M21 7l-9 5M3 7l9 5"/></svg>
+        <span>3D 展厅</span>
+      </button>
+      <button type="button" class="m-tab" data-tab="dex">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="4" y="3" width="16" height="18" rx="3"/><path d="M8 8h8M8 12h5"/></svg>
+        <span>主子卡册</span>
+      </button>
+    </nav>
+  </div>
+
+  <!-- ═══════════════════════ MODAL 1: 智能端侧发丝抠图 + 手涂修补台 ═══════════════════════ -->
+  <div class="modal-backdrop" id="modal-cutout" hidden>
+    <div class="modal-sheet" role="dialog" aria-modal="true" aria-labelledby="cutout-modal-title">
+      <div class="modal-head">
+        <div>
+          <h3 id="cutout-modal-title">智能抠图与手工发丝微调</h3>
+          <p id="cutout-status-line">端侧 O(N) 导向滤波极速分离背景，边缘可直接画笔涂抹修补</p>
+        </div>
+        <button type="button" class="btn-icon-close" id="btn-close-cutout" aria-label="关闭">✕</button>
+      </div>
+
+      <div class="cutout-workspace">
+        <div class="cutout-preview-wrap" id="cutout-preview-wrap">
+          <canvas id="cutout-editor-canvas" width="640" height="640"></canvas>
+        </div>
+
+        <div class="cutout-tools">
+          <div class="tool-group">
+            <span class="field-label">画笔微调模式</span>
+            <div class="segmented" id="brush-mode-segment">
+              <button type="button" data-mode="erase" class="is-active">擦除杂景</button>
+              <button type="button" data-mode="restore">补回猫毛</button>
+            </div>
+          </div>
+
+          <div class="slider-card__row">
+            <span>画笔粗细</span>
+            <strong class="mono-val" id="brush-size-val">26px</strong>
+          </div>
+          <input type="range" id="slider-brush-size" min="8" max="64" step="2" value="26">
+
+          <div class="slider-card__row">
+            <span>自动抠图容差</span>
+            <strong class="mono-val" id="cutout-sens-val">54%</strong>
+          </div>
+          <input type="range" id="slider-cutout-sens" min="15" max="90" step="1" value="54">
+
+          <div class="slider-card__row">
+            <span>边缘柔化羽化</span>
+            <strong class="mono-val" id="cutout-feather-val">2px</strong>
+          </div>
+          <input type="range" id="slider-cutout-feather" min="0" max="5" step="1" value="2">
+
+          <div class="cutout-tool-btns">
+            <button type="button" class="btn-chip" id="btn-cutout-reset">重跑自动抠图</button>
+            <label class="btn-chip" for="photo-file-input">换一张照</label>
+          </div>
+
+          <label class="ai-checkbox">
+            <input type="checkbox" id="chk-auto-ai" checked>
+            <span>完成抠图后顺便 AI 识别品种、花色与绝招</span>
+          </label>
+        </div>
+      </div>
+
+      <div class="modal-foot">
+        <button type="button" class="btn-outline" id="btn-cutout-use-full">不抠图整张铺满</button>
+        <button type="button" class="btn-jade" id="btn-cutout-confirm">确认使用这张主子</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════ MODAL 2: AI 识宠代理配置 ═══════════════════════ -->
+  <div class="modal-backdrop" id="modal-ai-settings" hidden>
+    <div class="modal-sheet modal-sheet--sm" role="dialog" aria-modal="true" aria-labelledby="ai-settings-title">
+      <div class="modal-head">
+        <div>
+          <h3 id="ai-settings-title">AI 识宠引擎设置</h3>
+          <p>支持直连 Cloudflare VisionProxy，也可切换纯离线端侧色彩鉴定</p>
+        </div>
+        <button type="button" class="btn-icon-close" id="btn-close-ai-settings" aria-label="关闭">✕</button>
+      </div>
+      <div class="form-block" style="padding:14px 0;">
+        <div class="field-row">
+          <label for="input-vision-url">VisionProxy 云端地址</label>
+          <input type="url" id="input-vision-url" placeholder="https://catchcat-vision-proxy.visionproxy.workers.dev">
+        </div>
+        <label class="ai-checkbox">
+          <input type="checkbox" id="chk-local-only">
+          <span>仅使用浏览器本地秒级鉴定（不请求外部网络）</span>
+        </label>
+      </div>
+      <div class="modal-foot">
+        <button type="button" class="btn-jade" id="btn-save-ai-settings">保存设置</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 全局轻提示 -->
+  <div class="toast" id="app-toast" role="status" aria-live="polite" hidden></div>
+
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
+
