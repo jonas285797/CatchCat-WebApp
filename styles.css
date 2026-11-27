@@ -1312,11 +1312,11 @@ input[type="range"] {
   color: #ffb81a;
 }
 
-/* ── 弹窗：抠图与 AI 设置 ── */
+/* ── 弹窗：抠图、AI、档案编辑与云端登录（务必高于 .inspect-backdrop 的 z-index: 75） ── */
 .modal-backdrop {
   position: fixed;
   inset: 0;
-  z-index: 70;
+  z-index: 84;
   background: rgba(8, 10, 14, 0.72);
   backdrop-filter: blur(6px);
   display: flex;

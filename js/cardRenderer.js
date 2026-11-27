@@ -5,8 +5,8 @@ import {
   FX_PRESETS,
   BADGE_PRESETS,
   resolveAdaptiveFX
-} from './presets.js?v=20261127b';
-import { drawQRToCanvas } from './qr.js?v=20261127b';
+} from './presets.js?v=20261127c';
+import { drawQRToCanvas } from './qr.js?v=20261127c';
 
 export const CARD_MM_W = 63;
 export const CARD_MM_H = 88;
@@ -1345,8 +1345,8 @@ export function renderCardBackToCanvas(canvas, card, cutoutImg = null, scale = 2
       ctx.restore();
     }
 
-    // 5. Minimalist Top & Bottom Archive Watermark
-    ctx.fillStyle = 'rgba(56, 36, 8, 0.80)';
+    // 5. Minimalist Top Archive Header + Bottom Official CatchPet Orb Icon Seal & QR
+    ctx.fillStyle = 'rgba(56, 36, 8, 0.82)';
     ctx.font = `800 8.5px ${MONO_STACK}`;
     ctx.textAlign = 'left';
     ctx.textBaseline = 'middle';
@@ -1356,11 +1356,94 @@ export function renderCardBackToCanvas(canvas, card, cutoutImg = null, scale = 2
     ctx.font = `700 8px ${FONT_STACK}`;
     ctx.fillText(card.breedName || '全息萌宠典藏', BW - 24, 29);
 
+    const badgeD = 38;
+    const badgeR = badgeD * 0.5;
+    const bx = 22 + badgeR;
+    const by = BH - 21 - badgeR;
+
+    // 嵌入上一版官方「双宠星环抓宠球」微章图标（外环精简、内芯放大清晰呈现双宠 icon）
+    ctx.save();
+    const glowGrad = ctx.createRadialGradient(bx, by, badgeR * 0.25, bx, by, badgeR * 1.35);
+    glowGrad.addColorStop(0, 'rgba(255, 226, 128, 0.55)');
+    glowGrad.addColorStop(1, 'rgba(255, 226, 128, 0)');
+    ctx.fillStyle = glowGrad;
+    ctx.beginPath();
+    ctx.arc(bx, by, badgeR * 1.35, 0, Math.PI * 2);
+    ctx.fill();
+
+    // 精灵球外圈红白渐变边框
+    ctx.beginPath();
+    ctx.arc(bx, by, badgeR, Math.PI, 0, false);
+    ctx.closePath();
+    ctx.fillStyle = makeLinearGrad(ctx, bx - badgeR, by - badgeR, bx + badgeR, by, ['#ff8569', '#d62f42']);
+    ctx.fill();
+
+    ctx.beginPath();
+    ctx.arc(bx, by, badgeR, 0, Math.PI, false);
+    ctx.closePath();
+    ctx.fillStyle = makeLinearGrad(ctx, bx - badgeR, by, bx + badgeR, by + badgeR, ['#f4f7fc', '#b6c2d6']);
+    ctx.fill();
+
+    // 中腰暗金分割带
+    ctx.fillStyle = '#101624';
+    ctx.fillRect(bx - badgeR, by - 2.2, badgeD, 4.4);
+
+    // 外圈金框
+    ctx.beginPath();
+    ctx.arc(bx, by, badgeR, 0, Math.PI * 2);
+    ctx.strokeStyle = '#d49f2a';
+    ctx.lineWidth = 1.6;
+    ctx.stroke();
+
+    // 内芯完整呈现上一版官方双宠星环图标 (assets/app-icon.png)
+    const coreR = badgeR * 0.78;
+    ctx.beginPath();
+    ctx.arc(bx, by, coreR + 1.4, 0, Math.PI * 2);
+    ctx.fillStyle = '#0e1526';
+    ctx.fill();
+
+    if (orbIcon && (orbIcon.naturalWidth || orbIcon.width)) {
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(bx, by, coreR, 0, Math.PI * 2);
+      ctx.clip();
+      const iw = orbIcon.naturalWidth || orbIcon.width;
+      const ih = orbIcon.naturalHeight || orbIcon.height;
+      const cov = Math.max((coreR * 2) / iw, (coreR * 2) / ih);
+      const dw = iw * cov;
+      const dh = ih * cov;
+      ctx.drawImage(orbIcon, bx - dw * 0.5, by - dh * 0.5, dw, dh);
+      ctx.restore();
+    } else {
+      ctx.beginPath();
+      ctx.arc(bx, by, coreR, 0, Math.PI * 2);
+      ctx.fillStyle = makeLinearGrad(ctx, bx - coreR, by - coreR, bx + coreR, by + coreR, energy.orb);
+      ctx.fill();
+    }
+
+    ctx.beginPath();
+    ctx.arc(bx, by, coreR, 0, Math.PI * 2);
+    ctx.strokeStyle = '#ffe58f';
+    ctx.lineWidth = 1.2;
+    ctx.stroke();
+    ctx.restore();
+
+    // 图标右侧印章文字
+    const textX = bx + badgeR + 8;
+    ctx.textAlign = 'left';
+    ctx.fillStyle = 'rgba(56, 36, 8, 0.86)';
+    ctx.font = `800 8.5px ${FONT_STACK}`;
+    ctx.fillText('抓宠大作战 · CATCHPET', textX, by - 5.5);
+
+    ctx.fillStyle = 'rgba(72, 46, 12, 0.72)';
+    ctx.font = `700 7.2px ${MONO_STACK}`;
+    ctx.fillText(`${card.serialNumber || '001/165 ★'} · 63×88mm`, textX, by + 6.5);
+
     const showQR = card.showBackQRCode !== false;
     if (showQR) {
-      const qSize = 42;
+      const qSize = 40;
       const qx = BW - 22 - qSize;
-      const qy = BH - 22 - qSize;
+      const qy = BH - 21 - qSize;
 
       roundPath(ctx, qx, qy, qSize, qSize, 6);
       ctx.fillStyle = 'rgba(250, 247, 238, 0.96)';
@@ -1374,11 +1457,6 @@ export function renderCardBackToCanvas(canvas, card, cutoutImg = null, scale = 2
       drawQRToCanvas(ctx, 'https://catchcat-studio.netlify.app', qx + 3, qy + 3, qSize - 6, '#0b1221', '#faf7ee');
       ctx.imageSmoothingEnabled = prevSmooth;
     }
-
-    ctx.textAlign = 'left';
-    ctx.fillStyle = 'rgba(56, 36, 8, 0.72)';
-    ctx.font = `700 7.6px ${MONO_STACK}`;
-    ctx.fillText(`抓宠大作战 · ${card.serialNumber || '001/165 ★'} · 63×88mm`, 24, BH - 27);
 
     ctx.restore();
     ctx.restore();

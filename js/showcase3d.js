@@ -1,5 +1,5 @@
-import { BORDER_PRESETS } from './presets.js?v=20261127b';
-import { getCardDisplayTitle, resolveEffectiveBorderId } from './cardRenderer.js?v=20261127b';
+import { BORDER_PRESETS } from './presets.js?v=20261127c';
+import { getCardDisplayTitle, resolveEffectiveBorderId } from './cardRenderer.js?v=20261127c';
 
 const CARD_W = 2.6;
 const CARD_H = CARD_W * (88 / 63);

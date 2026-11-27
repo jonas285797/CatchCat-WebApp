@@ -11,7 +11,7 @@ import {
   CAT_SNACKS,
   DOG_SNACKS,
   resolveAdaptiveFX
-} from './presets.js?v=20261127b';
+} from './presets.js?v=20261127c';
 import {
   loadImageCached,
   getEnergyConfig,
@@ -19,11 +19,11 @@ import {
   renderCardFrontToCanvas,
   renderCardBackToCanvas,
   exportCard4KBlob
-} from './cardRenderer.js?v=20261127b';
-import { WebCutoutEngine, preloadNeuralMatting } from './cutout.js?v=20261127b';
-import { getAISettings, saveAISettings, analyzePetSmart } from './ai.js?v=20261127b';
-import { loadAllCards, upsertCard, removeCard, getTrainerLevelInfo, grantTrainerXP } from './storage.js?v=20261127b';
-import { Card3DShowcase } from './showcase3d.js?v=20261127b';
+} from './cardRenderer.js?v=20261127c';
+import { WebCutoutEngine, preloadNeuralMatting } from './cutout.js?v=20261127c';
+import { getAISettings, saveAISettings, analyzePetSmart } from './ai.js?v=20261127c';
+import { loadAllCards, upsertCard, removeCard, getTrainerLevelInfo, grantTrainerXP } from './storage.js?v=20261127c';
+import { Card3DShowcase } from './showcase3d.js?v=20261127c';
 import {
   getCloudSession,
   registerCloudAccount,
@@ -32,7 +32,7 @@ import {
   pushCardToCloud,
   deleteCardFromCloud,
   syncCardsBidirectional
-} from './cloudSync.js?v=20261127b';
+} from './cloudSync.js?v=20261127c';
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
@@ -341,7 +341,7 @@ function scheduleStudioRender() {
 function renderStudioNow() {
   const card = state.currentCard;
   renderCardFrontToCanvas(dom.canvasFront, card, state.activeCutoutImg, 2);
-  renderCardBackToCanvas(dom.canvasBack, card, state.activeCutoutImg, 2);
+  renderCardBackToCanvas(dom.canvasBack, card, state.activeCutoutImg, 2, state.inspectEmblemImg || null);
 
   dom.studioBadge.textContent = getCardDisplayTitle(card);
   const adaptive = resolveAdaptiveFX(card);
@@ -1142,12 +1142,19 @@ async function openCardInspectModal(cardId) {
 }
 
 function openCardEditModal(cardId) {
-  const card = state.cards.find((c) => c.id === cardId);
-  if (!card || !dom.modalCardEdit) return;
+  const card = state.cards.find((c) => String(c.id) === String(cardId));
+  if (!card || !dom.modalCardEdit) {
+    showToast('未找到可编辑的卡牌档案，请刷新后重试');
+    return;
+  }
 
   state.editCardId = card.id;
   dom.editCardNickname.value = card.customNickname || card.name || '';
-  dom.editCardSuffix.value = card.suffix || '';
+  const suffixVal = card.suffix || '';
+  if (dom.editCardSuffix) {
+    const hasOption = Array.from(dom.editCardSuffix.options).some((o) => o.value === suffixVal);
+    dom.editCardSuffix.value = hasOption ? suffixVal : '';
+  }
   dom.editCardBreed.value = card.breedName || '';
   dom.editCardCoat.value = card.coatPattern || '';
   dom.editCardPersonality.value = card.personalityTag || card.abilityName || '';
@@ -1160,11 +1167,14 @@ function openCardEditModal(cardId) {
   dom.editBackStyle.value = card.cardBackStyle || 'fullArtPet';
   dom.editBackOrientation.value = card.cardBackOrientation || 'auto';
   dom.editBackQr.checked = card.showBackQRCode !== false;
+
+  const scrollBody = dom.modalCardEdit.querySelector('.form-block');
+  if (scrollBody) scrollBody.scrollTop = 0;
   dom.modalCardEdit.hidden = false;
 }
 
 async function saveCardEditModal() {
-  const idx = state.cards.findIndex((c) => c.id === state.editCardId);
+  const idx = state.cards.findIndex((c) => String(c.id) === String(state.editCardId));
   if (idx < 0) return;
 
   const target = state.cards[idx];
@@ -1932,11 +1942,15 @@ function bindEvents() {
     renderStudioNow();
     await switchTab('showcase');
   });
-  dom.btnInspectEdit?.addEventListener('click', () => {
-    if (state.inspectCardId) openCardEditModal(state.inspectCardId);
+  dom.btnInspectEdit?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const targetId = state.inspectCardId || getInspectedCard()?.id;
+    if (targetId) openCardEditModal(targetId);
   });
-  dom.btnInspectArchive?.addEventListener('click', () => {
-    if (state.inspectCardId) openCardEditModal(state.inspectCardId);
+  dom.btnInspectArchive?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const targetId = state.inspectCardId || getInspectedCard()?.id;
+    if (targetId) openCardEditModal(targetId);
   });
   dom.btnInspectFav?.addEventListener('click', async () => {
     const card = getInspectedCard();
@@ -2172,10 +2186,11 @@ async function init() {
   bindEvents();
   refreshCloudSessionUI();
   updateDexBadgeCount();
-  await Promise.all([
+  const [, emblemImg] = await Promise.all([
     ensureCutoutLoaded(state.currentCard),
     loadImageCached('assets/app-icon.png')
   ]);
+  state.inspectEmblemImg = emblemImg;
   syncControlsFromCurrentCard();
   renderStudioNow();
   startCameraStream(false);

@@ -135,3 +135,4 @@ export default async (req) => {
 
   return jsonResponse({ error: 'Method Not Allowed' }, 405);
 };
+
