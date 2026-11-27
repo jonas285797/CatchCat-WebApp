@@ -127,7 +127,7 @@ export const SAMPLE_CARDS = [
     attackName: '圆肚皮晒太阳',
     attackDamage: 180,
     flavorText: '常年盘踞地下车库 5 号柱旁，拥有把整只猫摊成暖呼呼大饼的绝技。',
-    locationName: 'CatchCat 示范馆',
+    locationName: '抓宠大作战 示范馆',
     cutoutSrc: 'assets/cat-orange.png',
     borderStyle: 'blackObsidian',
     backgroundStyle: 'cosmosNebula',
@@ -139,6 +139,8 @@ export const SAMPLE_CARDS = [
     subjectScale: 1.0,
     tnrClipped: true,
     showBackQRCode: true,
+    cardBackStyle: 'fullArtPet',
+    cardBackOrientation: 'auto',
     createdAt: 1764100000000
   },
   {
@@ -159,7 +161,7 @@ export const SAMPLE_CARDS = [
     attackName: '草丛飞扑抓球',
     attackDamage: 160,
     flavorText: '眼神锐利、花纹清晰，被国际爱猫界认证的东方自然猫王。',
-    locationName: 'CatchCat 示范馆',
+    locationName: '抓宠大作战 示范馆',
     cutoutSrc: 'assets/cat-lihua.png',
     borderStyle: 'platinumEx',
     backgroundStyle: 'emeraldForest',
@@ -171,6 +173,8 @@ export const SAMPLE_CARDS = [
     subjectScale: 1.0,
     tnrClipped: true,
     showBackQRCode: true,
+    cardBackStyle: 'fullArtPet',
+    cardBackOrientation: 'auto',
     createdAt: 1764090000000
   },
   {
@@ -191,7 +195,7 @@ export const SAMPLE_CARDS = [
     attackName: '垂直墙头跑酷',
     attackDamage: 150,
     flavorText: '背黑如墨、四蹄踏雪，专注在窗台与纸箱间表演搞笑特技。',
-    locationName: 'CatchCat 示范馆',
+    locationName: '抓宠大作战 示范馆',
     cutoutSrc: 'assets/cat-cow.png',
     borderStyle: 'prismaticRainbow',
     backgroundStyle: 'obsidianStudio',
@@ -203,6 +207,8 @@ export const SAMPLE_CARDS = [
     subjectScale: 1.0,
     tnrClipped: false,
     showBackQRCode: true,
+    cardBackStyle: 'fullArtPet',
+    cardBackOrientation: 'auto',
     createdAt: 1764080000000
   },
   {
@@ -223,7 +229,7 @@ export const SAMPLE_CARDS = [
     attackName: '琥珀墨镜歪头',
     attackDamage: 210,
     flavorText: '戴上复古圆框琥珀墨镜之后，连胡须都透着慵懒贵族气场。',
-    locationName: 'CatchCat 示范馆',
+    locationName: '抓宠大作战 示范馆',
     cutoutSrc: 'assets/cat-shades.png',
     borderStyle: 'classicGold',
     backgroundStyle: 'flameCanyon',
@@ -235,13 +241,26 @@ export const SAMPLE_CARDS = [
     subjectScale: 1.0,
     tnrClipped: false,
     showBackQRCode: true,
+    cardBackStyle: 'fullArtPet',
+    cardBackOrientation: 'auto',
     createdAt: 1764070000000
   }
 ];
 
+export const BACK_STYLES = [
+  { id: 'fullArtPet', name: '全幅萌宠（新）', desc: '极简炫彩底 + 全身放大萌宠' },
+  { id: 'collectorOrb', name: '抓宠球徽章', desc: '经典双宠徽章球 + 纪念档案卡' }
+];
+
+export const BACK_ORIENTATIONS = [
+  { id: 'auto', name: '智能识别' },
+  { id: 'portrait', name: '立式竖版' },
+  { id: 'landscape', name: '横向画幅' }
+];
+
 export const CAT_SNACKS = [
   { id: 'fish', name: '深海小鱼干', img: 'assets/snacks/snack_fish.png', tag: 'HP+10', hpBonus: 10, exBoost: 5, tone: 'amber' },
-  { id: 'freeze_meat', name: '纯肉冻干', img: 'assets/snacks/snack_freeze_meat.png', tag: 'HP+15', hpBonus: 15, exBoost: 8, tone: 'coral' },
+  { id: 'can', name: '鲜肉猫罐头', img: 'assets/snacks/snack_can.png', tag: 'HP+15', hpBonus: 15, exBoost: 8, tone: 'coral' },
   { id: 'puree', name: '鲜肉猫条', img: 'assets/snacks/snack_puree.png', tag: 'ex↑', hpBonus: 10, exBoost: 15, tone: 'rose' },
   { id: 'catnip', name: '天然猫薄荷', img: 'assets/snacks/snack_catnip.png', tag: 'HP+20', hpBonus: 20, exBoost: 10, tone: 'jade' }
 ];

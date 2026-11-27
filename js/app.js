@@ -11,7 +11,7 @@ import {
   CAT_SNACKS,
   DOG_SNACKS,
   resolveAdaptiveFX
-} from './presets.js?v=20261127a';
+} from './presets.js?v=20261127b';
 import {
   loadImageCached,
   getEnergyConfig,
@@ -19,11 +19,20 @@ import {
   renderCardFrontToCanvas,
   renderCardBackToCanvas,
   exportCard4KBlob
-} from './cardRenderer.js?v=20261127a';
-import { WebCutoutEngine, preloadNeuralMatting } from './cutout.js?v=20261127a';
-import { getAISettings, saveAISettings, analyzePetSmart } from './ai.js?v=20261127a';
-import { loadAllCards, upsertCard, removeCard, getTrainerLevelInfo, grantTrainerXP } from './storage.js?v=20261127a';
-import { Card3DShowcase } from './showcase3d.js?v=20261127a';
+} from './cardRenderer.js?v=20261127b';
+import { WebCutoutEngine, preloadNeuralMatting } from './cutout.js?v=20261127b';
+import { getAISettings, saveAISettings, analyzePetSmart } from './ai.js?v=20261127b';
+import { loadAllCards, upsertCard, removeCard, getTrainerLevelInfo, grantTrainerXP } from './storage.js?v=20261127b';
+import { Card3DShowcase } from './showcase3d.js?v=20261127b';
+import {
+  getCloudSession,
+  registerCloudAccount,
+  loginCloudAccount,
+  logoutCloudAccount,
+  pushCardToCloud,
+  deleteCardFromCloud,
+  syncCardsBidirectional
+} from './cloudSync.js?v=20261127b';
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
@@ -66,7 +75,15 @@ const state = {
   captureStream: null,
   captureTorchOn: false,
   cameraTried: false,
-  sessionBuff: { hpBonus: 0, exBoost: 0, count: 0 }
+  sessionBuff: { hpBonus: 0, exBoost: 0, count: 0 },
+  inspectCardId: null,
+  inspectCutoutImg: null,
+  isInspectFlipped: false,
+  isInspectFraming: false,
+  inspectDragStart: { clientX: 0, clientY: 0, ox: 0, oy: 0 },
+  editCardId: null,
+  authMode: 'login',
+  isSyncingCloud: false
 };
 
 const dom = {
@@ -79,6 +96,9 @@ const dom = {
     dex: $('#view-dex')
   },
   dexCountDesktop: $('#dex-count-desktop'),
+  btnOpenCloudAuth: $('#btn-open-cloud-auth'),
+  topCloudLabel: $('#top-cloud-label'),
+  btnDexCloudSync: $('#btn-dex-cloud-sync'),
   btnOpenAiSettings: $('#btn-open-ai-settings'),
   photoFileInput: $('#photo-file-input'),
   cameraFallbackInput: $('#camera-fallback-input'),
@@ -155,6 +175,8 @@ const dom = {
   inputAtkName: $('#input-atk-name'),
   inputAtkDmg: $('#input-atk-dmg'),
   inputFlavor: $('#input-card-flavor'),
+  studioBackStyleBtns: $$('#studio-back-style button[data-back-style]'),
+  studioBackOrientBtns: $$('#studio-back-orientation button[data-back-orient]'),
   chkBackQr: $('#chk-back-qr'),
 
   adaptiveTitle: $('#adaptive-zone-title'),
@@ -215,6 +237,71 @@ const dom = {
   chkLocalOnly: $('#chk-local-only'),
   btnSaveAiSettings: $('#btn-save-ai-settings'),
 
+  // Inspect Modal
+  modalInspect: $('#modal-card-inspect'),
+  inspectCardTitle: $('#inspect-card-title'),
+  btnInspectClose: $('#btn-inspect-close'),
+  btnInspect3d: $('#btn-inspect-3d'),
+  btnInspectEdit: $('#btn-inspect-edit'),
+  btnInspectFav: $('#btn-inspect-fav'),
+  btnInspectDelete: $('#btn-inspect-delete'),
+  inspectCardTilt: $('#inspect-card-tilt'),
+  inspectCardFlipper: $('#inspect-card-flipper'),
+  inspectCanvasFront: $('#inspect-canvas-front'),
+  inspectCanvasBack: $('#inspect-canvas-back'),
+  inspectCardSheen: $('#inspect-card-sheen'),
+  inspectFramingGuide: $('#inspect-framing-guide'),
+  btnInspectFramingToggle: $('#btn-inspect-framing-toggle'),
+  inspectAdaptiveBadge: $('#inspect-adaptive-badge'),
+  btnInspectFramingReset: $('#btn-inspect-framing-reset'),
+  inspectFramingSliders: $('#inspect-framing-sliders'),
+  inspectSliderOx: $('#inspect-slider-ox'),
+  inspectOxVal: $('#inspect-ox-val'),
+  inspectSliderOy: $('#inspect-slider-oy'),
+  inspectOyVal: $('#inspect-oy-val'),
+  inspectSliderScale: $('#inspect-slider-scale'),
+  inspectScaleVal: $('#inspect-scale-val'),
+  btnInspectFlip: $('#btn-inspect-flip'),
+  btnInspectArchive: $('#btn-inspect-archive'),
+  btnInspectExport: $('#btn-inspect-export'),
+
+  // Card Edit Modal
+  modalCardEdit: $('#modal-card-edit'),
+  btnCloseCardEdit: $('#btn-close-card-edit'),
+  editCardNickname: $('#edit-card-nickname'),
+  editCardSuffix: $('#edit-card-suffix'),
+  editCardBreed: $('#edit-card-breed'),
+  editCardCoat: $('#edit-card-coat'),
+  editCardPersonality: $('#edit-card-personality'),
+  editCardHobby: $('#edit-card-hobby'),
+  editCardAtk: $('#edit-card-atk'),
+  editCardHp: $('#edit-card-hp'),
+  editCardFlavor: $('#edit-card-flavor'),
+  editCardLocation: $('#edit-card-location'),
+  editCardSerial: $('#edit-card-serial'),
+  editBackStyle: $('#edit-back-style'),
+  editBackOrientation: $('#edit-back-orientation'),
+  editBackQr: $('#edit-back-qr'),
+  btnEditOpenStudio: $('#btn-edit-open-studio'),
+  btnSaveCardEdit: $('#btn-save-card-edit'),
+
+  // Cloud Auth Modal
+  modalAuth: $('#modal-auth'),
+  btnCloseAuth: $('#btn-close-auth'),
+  authGuestPanel: $('#auth-guest-panel'),
+  authSignedInPanel: $('#auth-signedin-panel'),
+  authModeBtns: $$('#auth-mode-segment button[data-auth-mode]'),
+  authInputAccount: $('#auth-input-account'),
+  authInputPassword: $('#auth-input-password'),
+  authDisplayNameRow: $('#auth-displayname-row'),
+  authInputDisplayName: $('#auth-input-displayname'),
+  authErrorMsg: $('#auth-error-msg'),
+  btnAuthSubmit: $('#btn-auth-submit'),
+  authProfileName: $('#auth-profile-name'),
+  authProfileMeta: $('#auth-profile-meta'),
+  btnAuthLogout: $('#btn-auth-logout'),
+  btnAuthSyncNow: $('#btn-auth-sync-now'),
+
   toast: $('#app-toast')
 };
 
@@ -254,7 +341,7 @@ function scheduleStudioRender() {
 function renderStudioNow() {
   const card = state.currentCard;
   renderCardFrontToCanvas(dom.canvasFront, card, state.activeCutoutImg, 2);
-  renderCardBackToCanvas(dom.canvasBack, card, 2);
+  renderCardBackToCanvas(dom.canvasBack, card, state.activeCutoutImg, 2);
 
   dom.studioBadge.textContent = getCardDisplayTitle(card);
   const adaptive = resolveAdaptiveFX(card);
@@ -342,6 +429,10 @@ function syncControlsFromCurrentCard() {
   dom.inputAtkName.value = card.attackName || '';
   dom.inputAtkDmg.value = String(card.attackDamage ?? 120);
   dom.inputFlavor.value = card.flavorText || '';
+  const bs = card.cardBackStyle || 'fullArtPet';
+  dom.studioBackStyleBtns?.forEach((btn) => btn.classList.toggle('is-active', btn.dataset.backStyle === bs));
+  const bo = card.cardBackOrientation || 'auto';
+  dom.studioBackOrientBtns?.forEach((btn) => btn.classList.toggle('is-active', btn.dataset.backOrient === bo));
   if (dom.chkBackQr) {
     dom.chkBackQr.checked = card.showBackQRCode !== false;
   }
@@ -637,9 +728,10 @@ function renderSnackGrid() {
     btn.type = 'button';
     btn.className = 'snack-card';
     btn.innerHTML = `
-      <img src="${snack.img}" alt="${snack.name}">
+      <span class="snack-card__media">
+        <img src="${snack.img}" alt="${snack.name}">
+      </span>
       <strong>${snack.name}</strong>
-      <span class="snack-tag snack-tag--${snack.tone}">${snack.tag}</span>
     `;
     btn.addEventListener('click', () => {
       feedSnack(snack, btn);
@@ -823,9 +915,9 @@ async function syncShowcaseCard() {
   const backEmblem = await loadImageCached('assets/app-icon.png');
   const frontHiRes = document.createElement('canvas');
   const backHiRes = document.createElement('canvas');
-  // 4.5x scale => 1467 × 2052 crispy PBR card textures for WebGL close-up zoom
+  // 4.5x scale => ~1467 × 2049 crispy PBR card textures (63:88) for WebGL close-up zoom
   renderCardFrontToCanvas(frontHiRes, card, cutout, 4.5);
-  renderCardBackToCanvas(backHiRes, card, 4.5, backEmblem);
+  renderCardBackToCanvas(backHiRes, card, cutout, 4.5, backEmblem);
 
   state.showcase.updateCardTextures(frontHiRes, backHiRes, card);
   await state.showcase.ensureInitialized();
@@ -835,7 +927,9 @@ async function syncShowcaseCard() {
 // ═══════════════════════ CARDDEX PERSISTENCE & GRID ═══════════════════════
 function updateDexBadgeCount() {
   dom.dexCountDesktop.textContent = String(state.cards.length);
-  dom.dexStatsLine.textContent = `本机已典藏 ${state.cards.length} 张主子闪卡 · 支持二次定制与 4K 透明导出`;
+  const sess = getCloudSession();
+  const cloudHint = sess?.user?.displayName ? ` · 云端已同步（${sess.user.displayName}）` : ' · 点击「云同步」可与 iOS 账号互通';
+  dom.dexStatsLine.textContent = `已收录 ${state.cards.length} 张萌宠闪卡（宝可梦 63×88mm 实体规格）${cloudHint}`;
 }
 
 async function getCardThumbDataUrl(card) {
@@ -854,6 +948,8 @@ async function getCardThumbDataUrl(card) {
     card.energyType,
     card.personalityTag,
     card.hobbyTag,
+    card.cardBackStyle || 'fullArtPet',
+    card.cardBackOrientation || 'auto',
     card.showBackQRCode !== false ? '1' : '0',
     card.subjectOffsetX,
     card.subjectOffsetY,
@@ -877,7 +973,7 @@ async function renderDexGrid() {
   const filtered = state.cards.filter((card) => {
     if (state.dexEnergy !== 'all' && card.energyType !== state.dexEnergy) return false;
     if (!q) return true;
-    const hay = `${card.name || ''} ${card.customNickname || ''} ${card.breedName || ''} ${card.coatPattern || ''} ${card.attackName || ''}`.toLowerCase();
+    const hay = `${card.name || ''} ${card.customNickname || ''} ${card.breedName || ''} ${card.coatPattern || ''} ${card.personalityTag || ''} ${card.hobbyTag || ''} ${card.attackName || ''}`.toLowerCase();
     return hay.includes(q);
   });
 
@@ -887,7 +983,7 @@ async function renderDexGrid() {
   if (filtered.length === 0) {
     const empty = document.createElement('div');
     empty.style.cssText = 'grid-column: 1 / -1; text-align:center; padding: 36px 16px; color: var(--ink-3); border: 1px dashed var(--border); border-radius: var(--r-md);';
-    empty.innerHTML = '<strong style="display:block;color:var(--ink-1);margin-bottom:6px;">卡册里还没有匹配的主子</strong><span style="font-size:12.5px;">换个关键词试试，或去「制卡工坊」新抓一只主子存入卡册。</span>';
+    empty.innerHTML = '<strong style="display:block;color:var(--ink-1);margin-bottom:6px;">萌宠图鉴里还没有匹配卡片</strong><span style="font-size:12.5px;">换个关键词试试，或去「抓拍萌宠 / 制卡工坊」新铸一张闪卡存入图鉴。</span>';
     dom.dexGrid.appendChild(empty);
     return;
   }
@@ -904,12 +1000,20 @@ async function renderDexGrid() {
     img.src = card.cutoutSrc || 'assets/app-icon.png';
     thumb.appendChild(img);
 
+    if (card.isFavorite) {
+      const favDot = document.createElement('span');
+      favDot.className = 'dex-fav-dot';
+      favDot.textContent = '♥';
+      favDot.style.color = '#ff6b7d';
+      thumb.appendChild(favDot);
+    }
+
     const meta = document.createElement('div');
     meta.className = 'dex-card__meta';
     const title = document.createElement('strong');
     title.textContent = getCardDisplayTitle(card);
     const sub = document.createElement('span');
-    sub.textContent = `${en.emoji} HP ${card.hp ?? 180} · ${card.breedName || '猫主子'}`;
+    sub.textContent = `${en.emoji} HP ${card.hp ?? 180} · ${card.breedName || '萌宠'}`;
     meta.appendChild(title);
     meta.appendChild(sub);
 
@@ -920,21 +1024,17 @@ async function renderDexGrid() {
     btnEdit.type = 'button';
     btnEdit.className = 'dex-btn';
     btnEdit.textContent = '编辑';
-    btnEdit.addEventListener('click', async () => {
-      state.currentCard = deepClone(card);
-      state.isFlipped = false;
-      dom.cardFlipper.classList.remove('is-flipped');
-      await ensureCutoutLoaded(state.currentCard);
-      syncControlsFromCurrentCard();
-      renderStudioNow();
-      await switchTab('studio');
+    btnEdit.addEventListener('click', (e) => {
+      e.stopPropagation();
+      openCardEditModal(card.id);
     });
 
     const btn3d = document.createElement('button');
     btn3d.type = 'button';
     btn3d.className = 'dex-btn';
     btn3d.textContent = '3D';
-    btn3d.addEventListener('click', async () => {
+    btn3d.addEventListener('click', async (e) => {
+      e.stopPropagation();
       state.currentCard = deepClone(card);
       await ensureCutoutLoaded(state.currentCard);
       syncControlsFromCurrentCard();
@@ -946,7 +1046,8 @@ async function renderDexGrid() {
     btnDel.type = 'button';
     btnDel.className = 'dex-btn dex-btn--danger';
     btnDel.textContent = state.pendingDeleteId === card.id ? '确认删?' : '删';
-    btnDel.addEventListener('click', async () => {
+    btnDel.addEventListener('click', async (e) => {
+      e.stopPropagation();
       if (state.pendingDeleteId !== card.id) {
         state.pendingDeleteId = card.id;
         clearTimeout(state.pendingDeleteTimer);
@@ -961,15 +1062,17 @@ async function renderDexGrid() {
       clearTimeout(state.pendingDeleteTimer);
       await removeCard(card.id);
       state.cards = state.cards.filter((c) => c.id !== card.id);
-      showToast(`已从卡册移除「${getCardDisplayTitle(card)}」`);
+      showToast(`已从萌宠图鉴移除「${getCardDisplayTitle(card)}」`);
       await renderDexGrid();
+      deleteCardFromCloud(card.id).catch(() => {});
     });
 
     actions.appendChild(btnEdit);
     actions.appendChild(btn3d);
     actions.appendChild(btnDel);
+    actions.addEventListener('click', (e) => e.stopPropagation());
 
-    thumb.addEventListener('click', () => btnEdit.click());
+    item.addEventListener('click', () => openCardInspectModal(card.id));
 
     item.appendChild(thumb);
     item.appendChild(meta);
@@ -980,6 +1083,174 @@ async function renderDexGrid() {
     getCardThumbDataUrl(card).then((url) => {
       if (url && img.isConnected) img.src = url;
     });
+  }
+}
+
+// ═══════════════════════ INSPECT MODAL (iOS CardInspectView 对齐) & EDIT MODAL ═══════════════════════
+function getInspectedCard() {
+  return state.cards.find((c) => c.id === state.inspectCardId) || null;
+}
+
+function renderInspectModalNow() {
+  const card = getInspectedCard();
+  if (!card || !dom.modalInspect || dom.modalInspect.hidden) return;
+
+  dom.inspectCardTitle.textContent = `👑 ${getCardDisplayTitle(card)}`;
+  dom.btnInspectFav.textContent = card.isFavorite ? '♥' : '♡';
+  dom.btnInspectFav.classList.toggle('is-active', Boolean(card.isFavorite));
+  dom.btnInspectFlip.textContent = state.isInspectFlipped ? '↻ 看正面' : '↻ 看背面';
+  dom.inspectCardFlipper.classList.toggle('is-flipped', state.isInspectFlipped);
+
+  const adaptive = resolveAdaptiveFX(card);
+  dom.inspectAdaptiveBadge.textContent = `✨ ${adaptive.title}`;
+
+  const ox = Number(card.subjectOffsetX || 0);
+  const oy = Number(card.subjectOffsetY || 0);
+  const sc = Number(card.subjectScale || 1);
+  dom.inspectSliderOx.value = String(ox);
+  dom.inspectOxVal.textContent = `${Math.round(ox * 100)}%`;
+  dom.inspectSliderOy.value = String(oy);
+  dom.inspectOyVal.textContent = `${Math.round(oy * 100)}%`;
+  dom.inspectSliderScale.value = String(sc);
+  dom.inspectScaleVal.textContent = `${sc.toFixed(2)}×`;
+
+  renderCardFrontToCanvas(dom.inspectCanvasFront, card, state.inspectCutoutImg, 2.2);
+  renderCardBackToCanvas(dom.inspectCanvasBack, card, state.inspectCutoutImg, 2.2, state.inspectEmblemImg || null);
+}
+
+async function openCardInspectModal(cardId) {
+  const card = state.cards.find((c) => c.id === cardId);
+  if (!card || !dom.modalInspect) return;
+
+  state.inspectCardId = card.id;
+  state.isInspectFlipped = false;
+  state.isInspectFraming = false;
+  dom.inspectCardTilt.classList.remove('is-framing');
+  dom.inspectFramingGuide.hidden = true;
+  dom.inspectFramingSliders.hidden = true;
+  dom.btnInspectFramingToggle.classList.remove('is-active');
+  dom.inspectCardTilt.style.transform = '';
+  dom.modalInspect.hidden = false;
+
+  const [cutoutImg, emblemImg] = await Promise.all([
+    loadImageCached(card.cutoutSrc),
+    state.inspectEmblemImg ? Promise.resolve(state.inspectEmblemImg) : loadImageCached('assets/app-icon.png'),
+  ]);
+  state.inspectCutoutImg = cutoutImg;
+  state.inspectEmblemImg = emblemImg;
+  renderInspectModalNow();
+}
+
+function openCardEditModal(cardId) {
+  const card = state.cards.find((c) => c.id === cardId);
+  if (!card || !dom.modalCardEdit) return;
+
+  state.editCardId = card.id;
+  dom.editCardNickname.value = card.customNickname || card.name || '';
+  dom.editCardSuffix.value = card.suffix || '';
+  dom.editCardBreed.value = card.breedName || '';
+  dom.editCardCoat.value = card.coatPattern || '';
+  dom.editCardPersonality.value = card.personalityTag || card.abilityName || '';
+  dom.editCardHobby.value = card.hobbyTag || card.attackName || '';
+  dom.editCardAtk.value = card.attackName || '';
+  dom.editCardHp.value = String(card.hp ?? 180);
+  dom.editCardFlavor.value = card.flavorText || '';
+  dom.editCardLocation.value = card.locationName || '抓宠大作战 示范馆';
+  dom.editCardSerial.value = card.serialNumber || '001/165 ★';
+  dom.editBackStyle.value = card.cardBackStyle || 'fullArtPet';
+  dom.editBackOrientation.value = card.cardBackOrientation || 'auto';
+  dom.editBackQr.checked = card.showBackQRCode !== false;
+  dom.modalCardEdit.hidden = false;
+}
+
+async function saveCardEditModal() {
+  const idx = state.cards.findIndex((c) => c.id === state.editCardId);
+  if (idx < 0) return;
+
+  const target = state.cards[idx];
+  const nick = dom.editCardNickname.value.trim();
+  target.customNickname = nick;
+  if (nick) target.name = nick;
+  target.suffix = dom.editCardSuffix.value;
+  target.breedName = dom.editCardBreed.value.trim() || target.breedName;
+  target.coatPattern = dom.editCardCoat.value.trim() || target.coatPattern;
+  target.personalityTag = dom.editCardPersonality.value.trim();
+  if (target.personalityTag) target.abilityName = target.personalityTag;
+  target.hobbyTag = dom.editCardHobby.value.trim();
+  target.attackName = dom.editCardAtk.value.trim() || target.attackName;
+  target.hp = Math.max(60, Math.min(320, Number(dom.editCardHp.value || target.hp || 180)));
+  target.flavorText = dom.editCardFlavor.value.trim();
+  target.locationName = dom.editCardLocation.value.trim() || '抓宠大作战';
+  target.serialNumber = dom.editCardSerial.value.trim() || '001/165 ★';
+  target.cardBackStyle = dom.editBackStyle.value || 'fullArtPet';
+  target.cardBackOrientation = dom.editBackOrientation.value || 'auto';
+  target.showBackQRCode = Boolean(dom.editBackQr.checked);
+  target.updatedAt = Date.now();
+
+  await upsertCard(target);
+  if (state.currentCard.id === target.id) {
+    state.currentCard = deepClone(target);
+    syncControlsFromCurrentCard();
+    renderStudioNow();
+  }
+  dom.modalCardEdit.hidden = true;
+  if (!dom.modalInspect.hidden && state.inspectCardId === target.id) {
+    renderInspectModalNow();
+  }
+  await renderDexGrid();
+  showToast(`已保存「${getCardDisplayTitle(target)}」的正背面信息与档案`);
+
+  pushCardToCloud(target, { includeCutout: true }).catch(() => {});
+}
+
+// ═══════════════════════ CLOUD AUTH & SYNC UI ═══════════════════════
+function refreshCloudSessionUI() {
+  const sess = getCloudSession();
+  const signedIn = Boolean(sess?.user);
+  if (dom.topCloudLabel) {
+    dom.topCloudLabel.textContent = signedIn ? `${sess.user.displayName}` : '云端登录';
+  }
+  dom.btnOpenCloudAuth?.classList.toggle('is-signed-in', signedIn);
+  if (dom.btnDexCloudSync) {
+    dom.btnDexCloudSync.textContent = signedIn ? `☁ 已同步 (${sess.user.displayName})` : '☁ 云端同步 / 登录';
+    dom.btnDexCloudSync.classList.toggle('is-signed-in', signedIn);
+  }
+  if (dom.authGuestPanel && dom.authSignedInPanel) {
+    dom.authGuestPanel.hidden = signedIn;
+    dom.authSignedInPanel.hidden = !signedIn;
+    if (signedIn) {
+      dom.authProfileName.textContent = `🐾 ${sess.user.displayName}（${sess.user.account}）`;
+      dom.authProfileMeta.textContent = `Lv.${sess.user.trainerLevel || 1} · Web 与 iOS App 登录同一账号即可双向实时同步萌宠图鉴`;
+    }
+  }
+  updateDexBadgeCount();
+}
+
+function openAuthModal() {
+  if (!dom.modalAuth) return;
+  if (dom.authErrorMsg) dom.authErrorMsg.hidden = true;
+  refreshCloudSessionUI();
+  dom.modalAuth.hidden = false;
+}
+
+async function runCloudSync({ silent = false } = {}) {
+  if (state.isSyncingCloud || !getCloudSession()) return;
+  state.isSyncingCloud = true;
+  try {
+    const res = await syncCardsBidirectional(state.cards, upsertCard);
+    state.cards = res.cards;
+    refreshCloudSessionUI();
+    await renderDexGrid();
+    if (!silent) {
+      showToast(`云端同步完成 · 拉取 ${res.downloaded} 张 · 上传 ${res.uploaded} 张`);
+    }
+  } catch (err) {
+    refreshCloudSessionUI();
+    if (!silent) {
+      showToast(String(err?.message || '云同步失败，请稍后再试'), 3400);
+    }
+  } finally {
+    state.isSyncingCloud = false;
   }
 }
 
@@ -1109,15 +1380,16 @@ function bindEvents() {
     dom.btnToggleSources.classList.toggle('is-active', open);
   });
 
-  // Save to CardDex
+  // Save to CardDex + Cloud
   dom.btnSaveCard.addEventListener('click', async () => {
     const isSample = !state.currentCard.id || String(state.currentCard.id).startsWith('sample-');
     if (isSample) {
       const idx = state.cards.length + 1;
-      state.currentCard.id = `card-${Date.now()}`;
+      state.currentCard.id = crypto.randomUUID ? crypto.randomUUID() : `card-${Date.now()}`;
       state.currentCard.serialNumber = `${String(idx).padStart(3, '0')}/165 ★`;
     }
-    state.currentCard.createdAt = Date.now();
+    state.currentCard.createdAt = state.currentCard.createdAt || Date.now();
+    state.currentCard.updatedAt = Date.now();
     const saved = await upsertCard(state.currentCard);
     const existingIdx = state.cards.findIndex((c) => c.id === saved.id);
     if (existingIdx >= 0) {
@@ -1126,14 +1398,16 @@ function bindEvents() {
       state.cards.unshift(saved);
     }
     updateDexBadgeCount();
-    showToast(`「${getCardDisplayTitle(saved)}」已存入本机卡册`);
+    showToast(`「${getCardDisplayTitle(saved)}」已存入萌宠图鉴`);
+    pushCardToCloud(saved, { includeCutout: true }).catch(() => {});
   });
 
-  // 4K Export (Studio & Showcase)
+  // 4K Export (Studio & Showcase) -> Exact 63x88mm (3024x4224px)
   const trigger4KDownload = async () => {
     try {
-      showToast('正在渲染 2934×4104 4K 无边距透明卡牌…', 4000);
-      const blob = await exportCard4KBlob(state.currentCard, state.activeCutoutImg);
+      const side = state.activeTab === 'studio' && state.isFlipped ? 'back' : 'front';
+      showToast('正在渲染 3024×4224（63×88mm 标准尺寸）4K PNG…', 4000);
+      const blob = await exportCard4KBlob(state.currentCard, state.activeCutoutImg, { side });
       if (!blob) {
         showToast('导出失败，请重试');
         return;
@@ -1142,12 +1416,12 @@ function bindEvents() {
       const a = document.createElement('a');
       const safeTitle = getCardDisplayTitle(state.currentCard).replace(/[\\/:*?"<>|\s]+/g, '_');
       a.href = url;
-      a.download = `${safeTitle}_4K.png`;
+      a.download = `${safeTitle}_${side}_63x88mm_4K.png`;
       document.body.appendChild(a);
       a.click();
       a.remove();
       setTimeout(() => URL.revokeObjectURL(url), 4000);
-      showToast('4K 超清透明 PNG（2934×4104）已下载');
+      showToast('63×88mm 宝可梦标准 4K 无损 PNG（3024×4224）已下载');
     } catch {
       showToast('4K 渲染过程中出现错误');
     }
@@ -1276,6 +1550,20 @@ function bindEvents() {
   dom.inputHobby?.addEventListener('input', () => {
     state.currentCard.hobbyTag = dom.inputHobby.value;
     scheduleStudioRender();
+  });
+  dom.studioBackStyleBtns?.forEach((btn) => {
+    btn.addEventListener('click', () => {
+      state.currentCard.cardBackStyle = btn.dataset.backStyle;
+      syncControlsFromCurrentCard();
+      scheduleStudioRender();
+    });
+  });
+  dom.studioBackOrientBtns?.forEach((btn) => {
+    btn.addEventListener('click', () => {
+      state.currentCard.cardBackOrientation = btn.dataset.backOrient;
+      syncControlsFromCurrentCard();
+      scheduleStudioRender();
+    });
   });
   dom.chkBackQr?.addEventListener('change', () => {
     state.currentCard.showBackQRCode = dom.chkBackQr.checked;
@@ -1514,13 +1802,15 @@ function bindEvents() {
     state.uploadedCustomSrc = dataUrl;
     state.currentCard = {
       ...deepClone(state.currentCard),
-      id: `card-${Date.now()}`,
+      id: crypto.randomUUID ? crypto.randomUUID() : `card-${Date.now()}`,
       serialNumber: `${String(state.cards.length + 1).padStart(3, '0')}/165 ★`,
       cutoutSrc: dataUrl,
+      cardBackStyle: state.currentCard.cardBackStyle || 'fullArtPet',
+      cardBackOrientation: state.currentCard.cardBackOrientation || 'auto',
       subjectOffsetX: 0,
       subjectOffsetY: 0,
       subjectScale: 1,
-      locationName: '网页端工坊自制',
+      locationName: '抓宠大作战 网页工坊',
       createdAt: Date.now()
     };
 
@@ -1613,8 +1903,8 @@ function bindEvents() {
   });
 
   // Backdrop click / Escape to close modals
-  [dom.modalCutout, dom.modalAiSettings].forEach((backdrop) => {
-    backdrop.addEventListener('click', (e) => {
+  [dom.modalCutout, dom.modalAiSettings, dom.modalCardEdit, dom.modalAuth].forEach((backdrop) => {
+    backdrop?.addEventListener('click', (e) => {
       if (e.target === backdrop) backdrop.hidden = true;
     });
   });
@@ -1622,8 +1912,253 @@ function bindEvents() {
     if (e.key === 'Escape') {
       dom.modalCutout.hidden = true;
       dom.modalAiSettings.hidden = true;
+      if (dom.modalCardEdit) dom.modalCardEdit.hidden = true;
+      if (dom.modalAuth) dom.modalAuth.hidden = true;
+      if (dom.modalInspect) dom.modalInspect.hidden = true;
     }
   });
+
+  // ── Inspect Modal Events (iOS CardInspectView 交互克隆) ──
+  dom.btnInspectClose?.addEventListener('click', () => {
+    dom.modalInspect.hidden = true;
+  });
+  dom.btnInspect3d?.addEventListener('click', async () => {
+    const card = getInspectedCard();
+    if (!card) return;
+    dom.modalInspect.hidden = true;
+    state.currentCard = deepClone(card);
+    await ensureCutoutLoaded(state.currentCard);
+    syncControlsFromCurrentCard();
+    renderStudioNow();
+    await switchTab('showcase');
+  });
+  dom.btnInspectEdit?.addEventListener('click', () => {
+    if (state.inspectCardId) openCardEditModal(state.inspectCardId);
+  });
+  dom.btnInspectArchive?.addEventListener('click', () => {
+    if (state.inspectCardId) openCardEditModal(state.inspectCardId);
+  });
+  dom.btnInspectFav?.addEventListener('click', async () => {
+    const card = getInspectedCard();
+    if (!card) return;
+    card.isFavorite = !card.isFavorite;
+    card.updatedAt = Date.now();
+    await upsertCard(card);
+    renderInspectModalNow();
+    await renderDexGrid();
+    pushCardToCloud(card, { includeCutout: false }).catch(() => {});
+  });
+  dom.btnInspectDelete?.addEventListener('click', async () => {
+    const card = getInspectedCard();
+    if (!card) return;
+    if (!window.confirm(`确定从萌宠图鉴中删除「${getCardDisplayTitle(card)}」吗？`)) return;
+    await removeCard(card.id);
+    state.cards = state.cards.filter((c) => c.id !== card.id);
+    dom.modalInspect.hidden = true;
+    await renderDexGrid();
+    showToast(`已移除「${getCardDisplayTitle(card)}」`);
+    deleteCardFromCloud(card.id).catch(() => {});
+  });
+  dom.btnInspectFlip?.addEventListener('click', () => {
+    state.isInspectFlipped = !state.isInspectFlipped;
+    renderInspectModalNow();
+  });
+  dom.btnInspectFramingToggle?.addEventListener('click', () => {
+    state.isInspectFraming = !state.isInspectFraming;
+    dom.btnInspectFramingToggle.classList.toggle('is-active', state.isInspectFraming);
+    dom.inspectCardTilt.classList.toggle('is-framing', state.isInspectFraming);
+    dom.inspectFramingGuide.hidden = !state.isInspectFraming;
+    dom.inspectFramingSliders.hidden = !state.isInspectFraming;
+    if (state.isInspectFraming) {
+      state.isInspectFlipped = false;
+      dom.inspectCardTilt.style.transform = '';
+      renderInspectModalNow();
+    }
+  });
+  dom.btnInspectFramingReset?.addEventListener('click', async () => {
+    const card = getInspectedCard();
+    if (!card) return;
+    card.subjectOffsetX = 0;
+    card.subjectOffsetY = 0;
+    card.subjectScale = 1.0;
+    card.updatedAt = Date.now();
+    await upsertCard(card);
+    renderInspectModalNow();
+    await renderDexGrid();
+  });
+  const updateInspectFramingValue = async () => {
+    const card = getInspectedCard();
+    if (!card) return;
+    card.updatedAt = Date.now();
+    renderInspectModalNow();
+    await upsertCard(card);
+    renderDexGrid();
+  };
+  dom.inspectSliderOx?.addEventListener('input', () => {
+    const card = getInspectedCard();
+    if (!card) return;
+    card.subjectOffsetX = Number(dom.inspectSliderOx.value);
+    updateInspectFramingValue();
+  });
+  dom.inspectSliderOy?.addEventListener('input', () => {
+    const card = getInspectedCard();
+    if (!card) return;
+    card.subjectOffsetY = Number(dom.inspectSliderOy.value);
+    updateInspectFramingValue();
+  });
+  dom.inspectSliderScale?.addEventListener('input', () => {
+    const card = getInspectedCard();
+    if (!card) return;
+    card.subjectScale = Number(dom.inspectSliderScale.value);
+    updateInspectFramingValue();
+  });
+
+  let lastInspectTap = 0;
+  let inspectFramingActive = false;
+  dom.inspectCardTilt?.addEventListener('pointerdown', (e) => {
+    const card = getInspectedCard();
+    if (!card) return;
+    if (state.isInspectFraming) {
+      inspectFramingActive = true;
+      dom.inspectCardTilt.setPointerCapture(e.pointerId);
+      state.inspectDragStart = { clientX: e.clientX, clientY: e.clientY, ox: Number(card.subjectOffsetX || 0), oy: Number(card.subjectOffsetY || 0) };
+      return;
+    }
+    const now = performance.now();
+    if (now - lastInspectTap < 320) {
+      state.isInspectFlipped = !state.isInspectFlipped;
+      renderInspectModalNow();
+      lastInspectTap = 0;
+    } else {
+      lastInspectTap = now;
+    }
+  });
+  dom.inspectCardTilt?.addEventListener('pointermove', (e) => {
+    const card = getInspectedCard();
+    if (!card) return;
+    const rect = dom.inspectCardTilt.getBoundingClientRect();
+    if (state.isInspectFraming && inspectFramingActive) {
+      const dx = (e.clientX - state.inspectDragStart.clientX) / Math.max(120, rect.width);
+      const dy = (e.clientY - state.inspectDragStart.clientY) / Math.max(120, rect.height);
+      card.subjectOffsetX = Math.max(-0.4, Math.min(0.4, Number((state.inspectDragStart.ox + dx * 1.1).toFixed(2))));
+      card.subjectOffsetY = Math.max(-0.4, Math.min(0.4, Number((state.inspectDragStart.oy + dy * 1.1).toFixed(2))));
+      updateInspectFramingValue();
+      return;
+    }
+    const nx = (e.clientX - rect.left) / Math.max(1, rect.width);
+    const ny = (e.clientY - rect.top) / Math.max(1, rect.height);
+    dom.inspectCardTilt.style.transform = `rotateX(${(-(ny - 0.5) * 14).toFixed(2)}deg) rotateY(${((nx - 0.5) * 16).toFixed(2)}deg)`;
+    dom.inspectCardSheen.style.setProperty('--gx', `${(nx * 100).toFixed(1)}%`);
+    dom.inspectCardSheen.style.setProperty('--gy', `${(ny * 100).toFixed(1)}%`);
+  });
+  const resetInspectTilt = () => {
+    inspectFramingActive = false;
+    if (!state.isInspectFraming && dom.inspectCardTilt) dom.inspectCardTilt.style.transform = '';
+  };
+  dom.inspectCardTilt?.addEventListener('pointerup', resetInspectTilt);
+  dom.inspectCardTilt?.addEventListener('pointerleave', resetInspectTilt);
+  dom.inspectCardTilt?.addEventListener('pointercancel', resetInspectTilt);
+
+  dom.btnInspectExport?.addEventListener('click', async () => {
+    const card = getInspectedCard();
+    if (!card) return;
+    const side = state.isInspectFlipped ? 'back' : 'front';
+    showToast('正在导出 63×88mm（3024×4224px）宝可梦标准 4K PNG…', 4000);
+    const blob = await exportCard4KBlob(card, state.inspectCutoutImg, { side });
+    if (!blob) {
+      showToast('导出失败，请重试');
+      return;
+    }
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${getCardDisplayTitle(card).replace(/[\\/:*?"<>|\s]+/g, '_')}_${side}_63x88mm_4K.png`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 4000);
+    showToast('已下载 63×88mm 实体规格 4K PNG');
+  });
+
+  // ── Card Edit Modal Events ──
+  dom.btnCloseCardEdit?.addEventListener('click', () => {
+    dom.modalCardEdit.hidden = true;
+  });
+  dom.btnSaveCardEdit?.addEventListener('click', saveCardEditModal);
+  dom.btnEditOpenStudio?.addEventListener('click', async () => {
+    const card = state.cards.find((c) => c.id === state.editCardId);
+    if (!card) return;
+    dom.modalCardEdit.hidden = true;
+    dom.modalInspect.hidden = true;
+    state.currentCard = deepClone(card);
+    state.isFlipped = false;
+    dom.cardFlipper.classList.remove('is-flipped');
+    await ensureCutoutLoaded(state.currentCard);
+    syncControlsFromCurrentCard();
+    renderStudioNow();
+    await switchTab('studio');
+  });
+
+  // ── Cloud Auth Modal Events ──
+  dom.btnOpenCloudAuth?.addEventListener('click', openAuthModal);
+  dom.btnDexCloudSync?.addEventListener('click', () => {
+    if (getCloudSession()) {
+      openAuthModal();
+      runCloudSync({ silent: false });
+    } else {
+      openAuthModal();
+    }
+  });
+  dom.btnCloseAuth?.addEventListener('click', () => {
+    dom.modalAuth.hidden = true;
+  });
+  dom.authModeBtns?.forEach((btn) => {
+    btn.addEventListener('click', () => {
+      state.authMode = btn.dataset.authMode === 'register' ? 'register' : 'login';
+      dom.authModeBtns.forEach((b) => b.classList.toggle('is-active', b === btn));
+      if (dom.authDisplayNameRow) dom.authDisplayNameRow.hidden = state.authMode !== 'register';
+      if (dom.btnAuthSubmit) {
+        dom.btnAuthSubmit.textContent = state.authMode === 'register' ? '注册账号并立即同步' : '登录并同步云端图鉴';
+      }
+      if (dom.authErrorMsg) dom.authErrorMsg.hidden = true;
+    });
+  });
+  dom.btnAuthSubmit?.addEventListener('click', async () => {
+    const account = (dom.authInputAccount?.value || '').trim();
+    const password = dom.authInputPassword?.value || '';
+    const displayName = (dom.authInputDisplayName?.value || '').trim();
+    if (dom.authErrorMsg) dom.authErrorMsg.hidden = true;
+
+    dom.btnAuthSubmit.disabled = true;
+    const origText = dom.btnAuthSubmit.textContent;
+    dom.btnAuthSubmit.textContent = state.authMode === 'register' ? '正在注册并开启云端库…' : '正在登录并校验凭证…';
+
+    try {
+      if (state.authMode === 'register') {
+        await registerCloudAccount({ account, password, displayName });
+      } else {
+        await loginCloudAccount({ account, password });
+      }
+      refreshCloudSessionUI();
+      await runCloudSync({ silent: false });
+      dom.modalAuth.hidden = true;
+    } catch (err) {
+      if (dom.authErrorMsg) {
+        dom.authErrorMsg.textContent = String(err?.message || '操作失败，请检查网络或输入格式');
+        dom.authErrorMsg.hidden = false;
+      }
+    } finally {
+      dom.btnAuthSubmit.disabled = false;
+      dom.btnAuthSubmit.textContent = origText;
+    }
+  });
+  dom.btnAuthLogout?.addEventListener('click', () => {
+    logoutCloudAccount();
+    refreshCloudSessionUI();
+    dom.modalAuth.hidden = true;
+    showToast('已退出云端账号，本机图鉴数据仍安全保留');
+  });
+  dom.btnAuthSyncNow?.addEventListener('click', () => runCloudSync({ silent: false }));
 }
 
 // ═══════════════════════ BOOTSTRAP ═══════════════════════
@@ -1635,6 +2170,7 @@ async function init() {
   renderSnackGrid();
   syncCaptureHUD();
   bindEvents();
+  refreshCloudSessionUI();
   updateDexBadgeCount();
   await Promise.all([
     ensureCutoutLoaded(state.currentCard),
@@ -1643,6 +2179,9 @@ async function init() {
   syncControlsFromCurrentCard();
   renderStudioNow();
   startCameraStream(false);
+  if (getCloudSession()) {
+    runCloudSync({ silent: true });
+  }
 }
 
 init();

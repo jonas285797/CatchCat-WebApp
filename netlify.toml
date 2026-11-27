@@ -1,5 +1,10 @@
+"$schema" = "https://open-api.netlify.com/netlify.schema.json"
+
 [build]
   publish = "."
+
+[functions]
+  node_bundler = "esbuild"
 
 [[headers]]
   for = "/assets/*"

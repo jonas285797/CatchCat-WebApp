@@ -1,7 +1,7 @@
 {
-  "name": "抓喵大作战 · CatchCat Studio",
-  "short_name": "抓喵制卡",
-  "description": "上传萌宠照片智能抠图，自由组合全息卡牌边框、场景与特效，3D 鉴赏并导出 4K 珍藏闪卡",
+  "name": "抓宠大作战 · CatchPet Studio",
+  "short_name": "抓宠制卡",
+  "description": "上传猫狗小宠照片智能抠图，自由组合全息卡牌边框、场景与特效，3D 鉴赏并导出 63×88mm 宝可梦标准 4K 珍藏闪卡",
   "start_url": ".",
   "display": "standalone",
   "background_color": "#14171c",
@@ -14,4 +14,3 @@
     }
   ]
 }
-

@@ -5,18 +5,100 @@ import {
   FX_PRESETS,
   BADGE_PRESETS,
   resolveAdaptiveFX
-} from './presets.js?v=20261127a';
-import { drawQRToCanvas } from './qr.js?v=20261127a';
+} from './presets.js?v=20261127b';
+import { drawQRToCanvas } from './qr.js?v=20261127b';
 
+export const CARD_MM_W = 63;
+export const CARD_MM_H = 88;
 export const CARD_LOGICAL_W = 326;
-export const CARD_LOGICAL_H = 456;
-export const CARD_OUTER_RADIUS = 20;
+export const CARD_LOGICAL_H = CARD_LOGICAL_W * (CARD_MM_H / CARD_MM_W); // 455.365 (exact 63:88)
+export const CARD_OUTER_RADIUS = 15.5; // ~3.0mm Pokemon TCG standard corner radius
+export const CARD_EXPORT_PX_W = 3024;  // 63mm * 48 = 1219.2 DPI 4K Print Master
+export const CARD_EXPORT_PX_H = 4224;  // 88mm * 48 = exact 63:88 physical aspect
 
 const FONT_STACK = `'PingFang SC', 'Hiragino Sans GB', 'Noto Sans SC', 'Inter', -apple-system, BlinkMacSystemFont, sans-serif`;
 const MONO_STACK = `'SF Mono', 'JetBrains Mono', 'Menlo', monospace`;
 
 const imageCache = new Map();
+const trimBoxCache = new WeakMap();
 let cachedBackEmblemImg = null;
+
+function measureCutoutTrimBox(img) {
+  if (!img || !(img.naturalWidth || img.width)) return null;
+  if (trimBoxCache.has(img)) return trimBoxCache.get(img);
+  try {
+    const iw = img.naturalWidth || img.width;
+    const ih = img.naturalHeight || img.height;
+    const S = 96;
+    const s = Math.min(1, S / Math.max(iw, ih));
+    const sw = Math.max(8, Math.round(iw * s));
+    const sh = Math.max(8, Math.round(ih * s));
+    const c = document.createElement('canvas');
+    c.width = sw;
+    c.height = sh;
+    const ctx = c.getContext('2d', { willReadFrequently: true });
+    ctx.drawImage(img, 0, 0, sw, sh);
+    const d = ctx.getImageData(0, 0, sw, sh).data;
+    let minX = sw, minY = sh, maxX = -1, maxY = -1;
+    for (let y = 0; y < sh; y++) {
+      for (let x = 0; x < sw; x++) {
+        if (d[(y * sw + x) * 4 + 3] > 28) {
+          if (x < minX) minX = x;
+          if (x > maxX) maxX = x;
+          if (y < minY) minY = y;
+          if (y > maxY) maxY = y;
+        }
+      }
+    }
+    const res =
+      maxX > minX && maxY > minY
+        ? { w: (maxX - minX + 1) / sw, h: (maxY - minY + 1) / sh, trimW: maxX - minX + 1, trimH: maxY - minY + 1 }
+        : { w: 1, h: 1, trimW: iw, trimH: ih };
+    trimBoxCache.set(img, res);
+    return res;
+  } catch {
+    return null;
+  }
+}
+
+function crc32(bytes) {
+  let c = 0xffffffff;
+  for (let i = 0; i < bytes.length; i++) {
+    c ^= bytes[i];
+    for (let k = 0; k < 8; k++) c = (c >>> 1) ^ (c & 1 ? 0xedb88320 : 0);
+  }
+  return (c ^ 0xffffffff) >>> 0;
+}
+
+/**
+ * Inject standard PNG pHYs chunk so 3024x4224px opens at exact 63mm x 88mm in Print/Photoshop
+ */
+async function injectPngPhysicalSize63x88(pngBlob, pxPerMeter = 48000) {
+  try {
+    const ab = await pngBlob.arrayBuffer();
+    const u8 = new Uint8Array(ab);
+    if (u8.length < 40 || u8[0] !== 0x89 || u8[1] !== 0x50) return pngBlob;
+
+    // 9-byte pHYs payload
+    const chunk = new Uint8Array(21);
+    const dv = new DataView(chunk.buffer);
+    dv.setUint32(0, 9, false);
+    chunk[4] = 0x70; chunk[5] = 0x48; chunk[6] = 0x59; chunk[7] = 0x73; // 'pHYs'
+    dv.setUint32(8, pxPerMeter, false);
+    dv.setUint32(12, pxPerMeter, false);
+    chunk[16] = 1; // unit = meter
+    dv.setUint32(17, crc32(chunk.subarray(4, 17)), false);
+
+    // Insert right after IHDR (byte 33)
+    const out = new Uint8Array(u8.length + chunk.length);
+    out.set(u8.subarray(0, 33), 0);
+    out.set(chunk, 33);
+    out.set(u8.subarray(33), 33 + chunk.length);
+    return new Blob([out], { type: 'image/png' });
+  } catch {
+    return pngBlob;
+  }
+}
 
 export function loadImageCached(src) {
   if (!src) return Promise.resolve(null);
@@ -683,11 +765,11 @@ export function renderCardFrontToCanvas(canvas, card, cutoutImg, scale = 2) {
   const H = CARD_LOGICAL_H;
 
   canvas.width = Math.round(W * scale);
-  canvas.height = Math.round(H * scale);
+  canvas.height = Math.round(canvas.width * (CARD_MM_H / CARD_MM_W));
   const ctx = canvas.getContext('2d');
   if (!ctx) return;
 
-  ctx.setTransform(scale, 0, 0, scale, 0, 0);
+  ctx.setTransform(canvas.width / W, 0, 0, canvas.height / H, 0, 0);
   ctx.clearRect(0, 0, W, H);
 
   const energy = getEnergyConfig(card.energyType);
@@ -1039,16 +1121,23 @@ export function renderCardFrontToCanvas(canvas, card, cutoutImg, scale = 2) {
     ctx.fillText(line, 27, flavY + 5 + i * 10.5);
   });
 
-  // 9. Collector Footer
+  // 9. Collector Footer (Illus. 抓宠大作战 + ©2026 CatchPet · 抓宠大作战)
   ctx.fillStyle = secondaryInk;
-  ctx.font = `600 7.5px ${MONO_STACK}`;
   ctx.textBaseline = 'middle';
+  ctx.font = `italic 700 7.2px ${FONT_STACK}`;
   ctx.textAlign = 'left';
-  const loc = (card.locationName || 'CatchCat 示范馆').slice(0, 14);
-  ctx.fillText(`ILLUS. CATCHCAT  ${loc}`, 22, 429);
+  ctx.fillText('Illus. 抓宠大作战', 22, 424);
+
+  ctx.font = `600 6.5px ${FONT_STACK}`;
+  const loc = (card.locationName || '抓宠大作战 示范馆').slice(0, 14);
+  ctx.fillText(`📍 ${loc}`, 22, 435);
 
   ctx.textAlign = 'right';
-  ctx.fillText(card.serialNumber || '001/165 ★', W - 22, 429);
+  ctx.font = `700 7.2px ${MONO_STACK}`;
+  ctx.fillText(card.serialNumber || '001/165 ★', W - 22, 424);
+
+  ctx.font = `600 6.2px ${MONO_STACK}`;
+  ctx.fillText('©2026 CatchPet · 抓宠大作战', W - 22, 435);
 
   // 10. 动物主体置顶层 (3D 破框跃出，置于原画边框、FX 特效、箔纹与版式之上，仅安全裁切在外金属框内缘)
   ctx.save();
@@ -1101,17 +1190,23 @@ export function renderCardFrontToCanvas(canvas, card, cutoutImg, scale = 2) {
   ctx.restore();
 }
 
-export function renderCardBackToCanvas(canvas, card, scale = 2, emblemImg = null) {
+export function renderCardBackToCanvas(canvas, card, cutoutImg = null, scale = 2, emblemImg = null) {
   if (!canvas) return;
+  if (typeof cutoutImg === 'number') {
+    emblemImg = scale && typeof scale !== 'number' ? scale : null;
+    scale = cutoutImg;
+    cutoutImg = null;
+  }
+
   const W = CARD_LOGICAL_W;
   const H = CARD_LOGICAL_H;
 
   canvas.width = Math.round(W * scale);
-  canvas.height = Math.round(H * scale);
+  canvas.height = Math.round(canvas.width * (CARD_MM_H / CARD_MM_W));
   const ctx = canvas.getContext('2d');
   if (!ctx) return;
 
-  ctx.setTransform(scale, 0, 0, scale, 0, 0);
+  ctx.setTransform(canvas.width / W, 0, 0, canvas.height / H, 0, 0);
   ctx.clearRect(0, 0, W, H);
 
   const energy = getEnergyConfig(card.energyType);
@@ -1119,21 +1214,179 @@ export function renderCardBackToCanvas(canvas, card, scale = 2, emblemImg = null
   const border = BORDER_PRESETS.find((b) => b.id === borderId) || BORDER_PRESETS[1];
   const badgeId = resolveEffectiveBadgeId(card);
   const orbIcon = emblemImg || cachedBackEmblemImg;
+  const backStyle = card.cardBackStyle || 'fullArtPet';
 
   ctx.save();
   roundPath(ctx, 0, 0, W, H, CARD_OUTER_RADIUS);
   ctx.clip();
 
-  // Outer rim
-  ctx.fillStyle = makeLinearGrad(ctx, 0, 0, W, H, border.grad);
+  // Outer metallic rim
+  ctx.fillStyle = makeLinearGrad(ctx, 0, 0, W, H, backStyle === 'fullArtPet'
+    ? ['#fff3bd', '#e2bc5c', '#c39134', '#f7df94']
+    : border.grad);
   ctx.fillRect(0, 0, W, H);
 
-  // Dark collector backing
-  const plate = { x: 11, y: 11, w: W - 22, h: H - 22, r: 13 };
+  // Inner metallic rim highlight
+  roundPath(ctx, 1.5, 1.5, W - 3, H - 3, CARD_OUTER_RADIUS - 1.5);
+  ctx.strokeStyle = 'rgba(255,255,255,0.28)';
+  ctx.lineWidth = 0.9;
+  ctx.stroke();
+
+  const plate = { x: 10, y: 10, w: W - 20, h: H - 20, r: 11 };
   ctx.save();
   roundPath(ctx, plate.x, plate.y, plate.w, plate.h, plate.r);
   ctx.clip();
 
+  // ── Variant 1 (Default): Clark-inspired Full-Art Holographic Pet Back (Portrait / Landscape) ──
+  if (backStyle === 'fullArtPet') {
+    const orientPref = card.cardBackOrientation || 'auto';
+    const trim = measureCutoutTrimBox(cutoutImg);
+    const isLandscape =
+      orientPref === 'landscape' ||
+      (orientPref === 'auto' && trim && trim.trimW > trim.trimH * 1.12);
+
+    ctx.save();
+    if (isLandscape) {
+      ctx.translate(W * 0.5, H * 0.5);
+      ctx.rotate(-Math.PI * 0.5);
+      ctx.translate(-H * 0.5, -W * 0.5);
+    }
+
+    const BW = isLandscape ? H : W;
+    const BH = isLandscape ? W : H;
+
+    // 1. Clean warm pearl-champagne studio radial backdrop
+    const studioBg = ctx.createRadialGradient(BW * 0.5, BH * 0.45, 18, BW * 0.5, BH * 0.48, Math.max(BW, BH) * 0.72);
+    studioBg.addColorStop(0, '#fff9e6');
+    studioBg.addColorStop(0.45, '#f0d896');
+    studioBg.addColorStop(0.85, '#c9a152');
+    studioBg.addColorStop(1, '#9c732d');
+    ctx.fillStyle = studioBg;
+    ctx.fillRect(0, 0, BW, BH);
+
+    // 2. Soft diagonal rainbow foil sheen (inspired by Clark promo holographic texture)
+    ctx.save();
+    ctx.globalCompositeOperation = 'screen';
+    const prism = ctx.createLinearGradient(0, 0, BW, BH);
+    prism.addColorStop(0.00, 'rgba(255, 224, 150, 0.25)');
+    prism.addColorStop(0.28, 'rgba(255, 182, 232, 0.30)');
+    prism.addColorStop(0.54, 'rgba(162, 238, 255, 0.34)');
+    prism.addColorStop(0.80, 'rgba(255, 236, 158, 0.28)');
+    prism.addColorStop(1.00, 'rgba(255, 210, 175, 0.22)');
+    ctx.fillStyle = prism;
+    ctx.fillRect(0, 0, BW, BH);
+
+    // Gentle sunlit diagonal shimmer shafts
+    const ray1 = ctx.createLinearGradient(BW * 0.1, 0, BW * 0.85, BH);
+    ray1.addColorStop(0.30, 'rgba(255,255,255,0)');
+    ray1.addColorStop(0.50, 'rgba(255,255,255,0.28)');
+    ray1.addColorStop(0.70, 'rgba(255,255,255,0)');
+    ctx.fillStyle = ray1;
+    ctx.fillRect(0, 0, BW, BH);
+    ctx.restore();
+
+    // 3. Soft ambient stardust bokeh motes (subtle & uncluttered)
+    const bokehSpots = [
+      [0.14, 0.16, 4.5], [0.84, 0.20, 6], [0.20, 0.72, 5],
+      [0.86, 0.66, 4], [0.76, 0.36, 3], [0.16, 0.42, 3.5]
+    ];
+    bokehSpots.forEach(([fx, fy, fr]) => {
+      const bgGrad = ctx.createRadialGradient(BW * fx, BH * fy, 0, BW * fx, BH * fy, fr * 2.5);
+      bgGrad.addColorStop(0, 'rgba(255, 252, 232, 0.72)');
+      bgGrad.addColorStop(1, 'rgba(255, 252, 232, 0)');
+      ctx.fillStyle = bgGrad;
+      ctx.beginPath();
+      ctx.arc(BW * fx, BH * fy, fr * 2.5, 0, Math.PI * 2);
+      ctx.fill();
+    });
+
+    // Subtle thin inner gold border line
+    roundPath(ctx, 16, 16, BW - 32, BH - 32, 8);
+    ctx.strokeStyle = 'rgba(255, 250, 224, 0.70)';
+    ctx.lineWidth = 1.2;
+    ctx.stroke();
+
+    // 4. Enlarged full-body pet cutout (centered spotlight showcase)
+    const hasCutout = cutoutImg && (cutoutImg.naturalWidth || cutoutImg.width) > 0;
+    if (hasCutout) {
+      const iw = cutoutImg.naturalWidth || cutoutImg.width;
+      const ih = cutoutImg.naturalHeight || cutoutImg.height;
+      const availW = BW - 42;
+      const availH = BH - (isLandscape ? 58 : 78);
+      const fitScale = Math.min(availW / iw, availH / ih);
+      const dw = iw * fitScale;
+      const dh = ih * fitScale;
+      const dx = (BW - dw) * 0.5;
+      const dy = (BH - dh) * 0.5 + (isLandscape ? 2 : -2);
+
+      // Soft bright rim backlight behind pet
+      const aura = ctx.createRadialGradient(BW * 0.5, BH * 0.48, 12, BW * 0.5, BH * 0.48, Math.max(dw, dh) * 0.65);
+      aura.addColorStop(0, 'rgba(255, 255, 255, 0.72)');
+      aura.addColorStop(0.55, 'rgba(255, 244, 198, 0.25)');
+      aura.addColorStop(1, 'rgba(255, 255, 255, 0)');
+      ctx.fillStyle = aura;
+      ctx.beginPath();
+      ctx.arc(BW * 0.5, BH * 0.48, Math.max(dw, dh) * 0.65, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.save();
+      ctx.shadowColor = 'rgba(84, 52, 12, 0.28)';
+      ctx.shadowBlur = 18;
+      ctx.shadowOffsetY = 6;
+      ctx.drawImage(cutoutImg, dx, dy, dw, dh);
+      ctx.restore();
+    } else if (orbIcon && (orbIcon.naturalWidth || orbIcon.width)) {
+      const r = 56;
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(BW * 0.5, BH * 0.48, r, 0, Math.PI * 2);
+      ctx.clip();
+      ctx.drawImage(orbIcon, BW * 0.5 - r, BH * 0.48 - r, r * 2, r * 2);
+      ctx.restore();
+    }
+
+    // 5. Minimalist Top & Bottom Archive Watermark
+    ctx.fillStyle = 'rgba(56, 36, 8, 0.80)';
+    ctx.font = `800 8.5px ${MONO_STACK}`;
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(`CATCHPET · ${getCardDisplayTitle(card)}`, 24, 29);
+
+    ctx.textAlign = 'right';
+    ctx.font = `700 8px ${FONT_STACK}`;
+    ctx.fillText(card.breedName || '全息萌宠典藏', BW - 24, 29);
+
+    const showQR = card.showBackQRCode !== false;
+    if (showQR) {
+      const qSize = 42;
+      const qx = BW - 22 - qSize;
+      const qy = BH - 22 - qSize;
+
+      roundPath(ctx, qx, qy, qSize, qSize, 6);
+      ctx.fillStyle = 'rgba(250, 247, 238, 0.96)';
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(138, 96, 22, 0.55)';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+
+      const prevSmooth = ctx.imageSmoothingEnabled;
+      ctx.imageSmoothingEnabled = false;
+      drawQRToCanvas(ctx, 'https://catchcat-studio.netlify.app', qx + 3, qy + 3, qSize - 6, '#0b1221', '#faf7ee');
+      ctx.imageSmoothingEnabled = prevSmooth;
+    }
+
+    ctx.textAlign = 'left';
+    ctx.fillStyle = 'rgba(56, 36, 8, 0.72)';
+    ctx.font = `700 7.6px ${MONO_STACK}`;
+    ctx.fillText(`抓宠大作战 · ${card.serialNumber || '001/165 ★'} · 63×88mm`, 24, BH - 27);
+
+    ctx.restore();
+    ctx.restore();
+    ctx.restore();
+    return;
+  }
+
+  // ── Variant 2: Classic CatchPet Collector Orb + Archive Plaque + QR ──
   const backGrad = ctx.createRadialGradient(W * 0.5, H * 0.40, 12, W * 0.5, H * 0.44, H * 0.68);
   backGrad.addColorStop(0, '#1e355e');
   backGrad.addColorStop(0.55, '#111d36');
@@ -1141,7 +1394,6 @@ export function renderCardBackToCanvas(canvas, card, scale = 2, emblemImg = null
   ctx.fillStyle = backGrad;
   ctx.fillRect(plate.x, plate.y, plate.w, plate.h);
 
-  // Guilloche vector swirl rings centered around CatchCat Orb
   const cx = W * 0.5;
   const cy = 176;
   ctx.save();
@@ -1162,7 +1414,6 @@ export function renderCardBackToCanvas(canvas, card, scale = 2, emblemImg = null
   }
   ctx.restore();
 
-  // Double gold inner frame
   roundPath(ctx, plate.x + 6, plate.y + 6, plate.w - 12, plate.h - 12, 10);
   ctx.strokeStyle = 'rgba(232, 190, 74, 0.62)';
   ctx.lineWidth = 1.4;
@@ -1172,14 +1423,12 @@ export function renderCardBackToCanvas(canvas, card, scale = 2, emblemImg = null
   ctx.lineWidth = 0.8;
   ctx.stroke();
 
-  // Top Edition Banner
   ctx.fillStyle = '#e7be56';
   ctx.font = `800 9.5px ${MONO_STACK}`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillText('CATCHCAT · COLLECTOR EDITION', W * 0.5, 34);
+  ctx.fillText('CATCHPET · COLLECTOR EDITION', W * 0.5, 34);
 
-  // Central CatchCat Orb Crest (Pokeball geometry + official Dual-Pet Emblem lens)
   const outerR = 54;
   const halo = ctx.createRadialGradient(cx, cy, 20, cx, cy, outerR + 34);
   halo.addColorStop(0, `${energy.orb[0]}58`);
@@ -1189,35 +1438,30 @@ export function renderCardBackToCanvas(canvas, card, scale = 2, emblemImg = null
   ctx.arc(cx, cy, outerR + 34, 0, Math.PI * 2);
   ctx.fill();
 
-  // Upper coral-crimson dome
   ctx.beginPath();
   ctx.arc(cx, cy, outerR, Math.PI, 0, false);
   ctx.closePath();
   ctx.fillStyle = makeLinearGrad(ctx, cx - outerR, cy - outerR, cx + outerR, cy, ['#ff8569', '#d62f42']);
   ctx.fill();
 
-  // Lower pearl-silver dome
   ctx.beginPath();
   ctx.arc(cx, cy, outerR, 0, Math.PI, false);
   ctx.closePath();
   ctx.fillStyle = makeLinearGrad(ctx, cx - outerR, cy, cx + outerR, cy + outerR, ['#f4f7fc', '#aebad0']);
   ctx.fill();
 
-  // Equator dark band + gold hairline trim
   ctx.fillStyle = '#101624';
   ctx.fillRect(cx - outerR, cy - 5.5, outerR * 2, 11);
   ctx.fillStyle = 'rgba(245, 215, 127, 0.72)';
   ctx.fillRect(cx - outerR + 1, cy - 5.5, outerR * 2 - 2, 1);
   ctx.fillRect(cx - outerR + 1, cy + 4.5, outerR * 2 - 2, 1);
 
-  // Outer orb golden rim
   ctx.beginPath();
   ctx.arc(cx, cy, outerR, 0, Math.PI * 2);
   ctx.strokeStyle = '#ebc454';
   ctx.lineWidth = 3;
   ctx.stroke();
 
-  // Center bezel & circular icon medallion
   ctx.beginPath();
   ctx.arc(cx, cy, 34, 0, Math.PI * 2);
   ctx.fillStyle = '#0e1526';
@@ -1238,16 +1482,6 @@ export function renderCardBackToCanvas(canvas, card, scale = 2, emblemImg = null
     const dw = iw * cov;
     const dh = ih * cov;
     ctx.drawImage(orbIcon, cx - dw * 0.5, cy - dh * 0.5, dw, dh);
-
-    // Subtle spherical glass glint on upper half
-    const glint = ctx.createLinearGradient(cx, cy - innerIconR, cx, cy);
-    glint.addColorStop(0, 'rgba(255,255,255,0.28)');
-    glint.addColorStop(0.65, 'rgba(255,255,255,0.03)');
-    glint.addColorStop(1, 'rgba(255,255,255,0)');
-    ctx.fillStyle = glint;
-    ctx.beginPath();
-    ctx.ellipse(cx, cy - innerIconR * 0.42, innerIconR * 0.78, innerIconR * 0.46, 0, 0, Math.PI * 2);
-    ctx.fill();
     ctx.restore();
   } else {
     ctx.beginPath();
@@ -1263,7 +1497,6 @@ export function renderCardBackToCanvas(canvas, card, scale = 2, emblemImg = null
   ctx.lineWidth = 1.6;
   ctx.stroke();
 
-  // Collector Nameplate Box
   const boxY = 248;
   roundPath(ctx, 28, boxY, W - 56, 92, 10);
   ctx.fillStyle = 'rgba(10, 15, 28, 0.78)';
@@ -1288,9 +1521,8 @@ export function renderCardBackToCanvas(canvas, card, scale = 2, emblemImg = null
 
   ctx.fillStyle = 'rgba(185, 198, 223, 0.78)';
   ctx.font = `500 9px ${FONT_STACK}`;
-  ctx.fillText(`爱好：${(card.hobbyTag || card.attackName || '晒太阳贴贴').slice(0, 12)} · ${card.locationName || 'CatchCat 示范馆'}`, W * 0.5, boxY + 80);
+  ctx.fillText(`爱好：${(card.hobbyTag || card.attackName || '晒太阳贴贴').slice(0, 12)} · ${card.locationName || '抓宠大作战'}`, W * 0.5, boxY + 80);
 
-  // Bottom Authentication + Scannable Web QR Badge
   const showQR = card.showBackQRCode !== false;
   if (showQR) {
     const qSize = 60;
@@ -1313,7 +1545,7 @@ export function renderCardBackToCanvas(canvas, card, scale = 2, emblemImg = null
     ctx.textBaseline = 'middle';
     ctx.fillStyle = '#e7be56';
     ctx.font = `800 9.5px ${FONT_STACK}`;
-    ctx.fillText('抓喵大作战 · 全息萌宠闪卡', 30, 371);
+    ctx.fillText('抓宠大作战 · 全息萌宠闪卡', 30, 371);
 
     ctx.fillStyle = '#f2f5fc';
     ctx.font = `700 10.5px ${FONT_STACK}`;
@@ -1326,19 +1558,26 @@ export function renderCardBackToCanvas(canvas, card, scale = 2, emblemImg = null
     ctx.textAlign = 'center';
     ctx.fillStyle = 'rgba(232, 190, 74, 0.75)';
     ctx.font = `700 8.5px ${MONO_STACK}`;
-    ctx.fillText('AUTHENTICATED PET TRADING CARD · CATCHCAT', W * 0.5, H - 34);
+    ctx.fillText('AUTHENTICATED PET TRADING CARD · CATCHPET', W * 0.5, H - 34);
   }
 
   ctx.restore();
   ctx.restore();
 }
 
-export async function exportCard4KBlob(card, cutoutImg) {
+export async function exportCard4KBlob(card, cutoutImg, { side = 'front' } = {}) {
   const offscreen = document.createElement('canvas');
   const resolvedImg = cutoutImg || (card.cutoutSrc ? await loadImageCached(card.cutoutSrc) : null);
-  renderCardFrontToCanvas(offscreen, card, resolvedImg, 9);
-  return new Promise((resolve) => {
+  const printScale = CARD_EXPORT_PX_W / CARD_LOGICAL_W; // exact 3024 x 4224 (63mm x 88mm)
+  if (side === 'back') {
+    const emblem = await loadImageCached('assets/app-icon.png');
+    renderCardBackToCanvas(offscreen, card, resolvedImg, printScale, emblem);
+  } else {
+    renderCardFrontToCanvas(offscreen, card, resolvedImg, printScale);
+  }
+  const rawBlob = await new Promise((resolve) => {
     offscreen.toBlob((blob) => resolve(blob), 'image/png');
   });
+  return rawBlob ? injectPngPhysicalSize63x88(rawBlob, 48000) : null;
 }
 

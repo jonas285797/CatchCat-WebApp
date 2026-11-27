@@ -1,4 +1,4 @@
-import { BREED_QUICK_PICKS } from './presets.js?v=20261127a';
+import { BREED_QUICK_PICKS } from './presets.js?v=20261127b';
 
 /**
  * CatchCat Web 端云混合智能识宠引擎

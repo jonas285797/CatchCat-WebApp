@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <title>抓喵大作战 · CatchCat 4K 全定制制卡台</title>
-  <meta name="description" content="CatchCat Web App：手机或桌面随时上传萌宠照精抠毛发，自由混搭边框、背景与全息箔纹特效，Three.js 3D 4K 微距鉴赏并导出 2934×4104 满版无边距闪卡。">
+  <title>抓宠大作战 · CatchPet 4K 全定制制卡台</title>
+  <meta name="description" content="抓宠大作战 CatchPet Web Studio：上传猫狗小宠照片智能抠图，自由混搭边框、背景与全息箔纹特效，3D 4K 鉴赏并导出 63×88mm 宝可梦标准无边距闪卡，支持云端账号多端同步。">
   <meta name="theme-color" content="#14171c">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -20,24 +20,24 @@
     }
   }
   </script>
-  <link rel="stylesheet" href="styles.css?v=20261127a">
+  <link rel="stylesheet" href="styles.css?v=20261127b">
 </head>
 <body>
   <div class="app-shell">
-    <!-- 顶部工作室导航栏（桌面端切页 + 全局传图/配置入口；手机端保留轻便顶栏，主导航归到底部拇指区） -->
+    <!-- 顶部工作室导航栏（桌面端切页 + 全局传图/云账号入口；手机端保留轻便顶栏，主导航归到底部拇指区） -->
     <header class="topbar">
       <div class="brand">
-        <img class="brand__icon" src="assets/app-icon.png" alt="CatchCat" width="34" height="34">
+        <img class="brand__icon" src="assets/app-icon.png" alt="CatchPet 抓宠大作战" width="34" height="34">
         <div class="brand__meta">
-          <strong class="brand__name">抓喵大作战</strong>
-          <span class="brand__tag">4K CARD STUDIO · WEB</span>
+          <strong class="brand__name">抓宠大作战</strong>
+          <span class="brand__tag">CATCHPET 4K STUDIO · 63×88mm</span>
         </div>
       </div>
 
       <nav class="desktop-tabs" aria-label="主功能切换">
         <button type="button" class="nav-pill is-active" data-tab="capture">
           <span class="nav-pill__dot" aria-hidden="true"></span>
-          抓拍抓猫
+          抓拍萌宠
         </button>
         <button type="button" class="nav-pill" data-tab="studio">
           制卡工坊
@@ -46,11 +46,16 @@
           3D · 4K 展厅
         </button>
         <button type="button" class="nav-pill" data-tab="dex">
-          主子卡册 <span class="nav-count" id="dex-count-desktop">0</span>
+          萌宠图鉴 <span class="nav-count" id="dex-count-desktop">0</span>
         </button>
       </nav>
 
       <div class="topbar__actions">
+        <button type="button" class="cloud-auth-pill" id="btn-open-cloud-auth" title="云端账号跨端同步">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.1" aria-hidden="true"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10Z"/></svg>
+          <span id="top-cloud-label">云端登录</span>
+        </button>
+
         <button type="button" class="btn-chip" id="btn-open-ai-settings" title="云端识宠配置">
           <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9c.26.6.82 1 1.51 1H21a2 2 0 1 1 0 4h-.09c-.69 0-1.25.4-1.51 1Z"/></svg>
           <span class="hide-sm">识宠引擎</span>
@@ -68,8 +73,8 @@
     <!-- 主内容滚动视图容器（各 Tab 独立视图，保持干净无串扰） -->
     <main class="workspace" id="workspace">
 
-      <!-- ═══════════════════════ VIEW 0: 抓拍抓猫（默认首页 · 实时相机 + 零食投喂台） ═══════════════════════ -->
-      <section class="view is-active" id="view-capture" aria-label="抓拍抓猫">
+      <!-- ═══════════════════════ VIEW 0: 抓拍萌宠（默认首页 · 实时相机 + 零食投喂台） ═══════════════════════ -->
+      <section class="view is-active" id="view-capture" aria-label="抓拍萌宠">
         <div class="capture-shell">
           <div class="capture-viewport" id="capture-viewport">
             <video id="capture-video" autoplay playsinline muted></video>
@@ -140,7 +145,7 @@
               <span>相册制卡</span>
             </button>
 
-            <button type="button" class="shutter-main-btn" id="btn-shutter" aria-label="抓拍抓猫">
+            <button type="button" class="shutter-main-btn" id="btn-shutter" aria-label="抓拍萌宠">
               <span class="shutter-main-btn__core">
                 <svg viewBox="0 0 24 24" width="26" height="26" fill="currentColor" aria-hidden="true"><path d="M9 4 7.17 6H4a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-3.17L15 4H9Zm3 13a4.5 4.5 0 1 1 0-9 4.5 4.5 0 0 1 0 9Z"/></svg>
               </span>
@@ -373,6 +378,21 @@
                     <input type="text" id="input-card-flavor" maxlength="48" placeholder="记录这只主子的可爱瞬间…">
                   </div>
 
+                  <div class="field-row">
+                    <span class="field-label">卡背版式与方向（全幅放大宠物照 · 自适应立/横）</span>
+                    <div class="segmented" id="studio-back-style">
+                      <button type="button" data-back-style="fullArtPet" class="is-active">全幅萌宠（新）</button>
+                      <button type="button" data-back-style="collectorOrb">抓宠球徽章</button>
+                    </div>
+                  </div>
+                  <div class="field-row">
+                    <div class="segmented" id="studio-back-orientation">
+                      <button type="button" data-back-orient="auto" class="is-active">智能立/横</button>
+                      <button type="button" data-back-orient="portrait">立式竖版</button>
+                      <button type="button" data-back-orient="landscape">横版画幅</button>
+                    </div>
+                  </div>
+
                   <label class="ai-checkbox" style="margin-top:4px;">
                     <input type="checkbox" id="chk-back-qr" checked>
                     <span>卡背展示「扫码直达制同款」二维码</span>
@@ -478,15 +498,16 @@
         </div>
       </section>
 
-      <!-- ═══════════════════════ VIEW 3: 主子卡册（本地持久化存档） ═══════════════════════ -->
-      <section class="view" id="view-dex" aria-label="主子卡册">
+      <!-- ═══════════════════════ VIEW 3: 萌宠图鉴（本地 + 云端双端同步存档） ═══════════════════════ -->
+      <section class="view" id="view-dex" aria-label="萌宠图鉴">
         <div class="dex-wrap">
           <div class="dex-header">
             <div>
-              <h2>主子闪卡收藏馆</h2>
-              <p id="dex-stats-line">已保存在本机浏览器 · 支持随时二次编辑与 4K 导出</p>
+              <h2>萌宠全息图鉴</h2>
+              <p id="dex-stats-line">宝可梦 63×88mm 标准实体规格 · 支持点击沉浸看卡/编辑档案与跨端云同步</p>
             </div>
             <div class="dex-backup-actions">
+              <button type="button" class="cloud-auth-pill" id="btn-dex-cloud-sync">☁ 云同步 / 登录</button>
               <button type="button" class="btn-chip" id="btn-backup-export">备份卡册</button>
               <label class="btn-chip" for="backup-file-input">导入恢复</label>
               <input id="backup-file-input" type="file" accept="application/json" hidden>
@@ -507,7 +528,7 @@
     <nav class="mobile-tabbar" aria-label="底部主导航">
       <button type="button" class="m-tab is-active" data-tab="capture">
         <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 8V6a2 2 0 0 1 2-2h2M16 4h2a2 2 0 0 1 2 2v2M4 16v2a2 2 0 0 0 2 2h2M16 20h2a2 2 0 0 0 2-2v-2"/><circle cx="12" cy="12" r="3"/></svg>
-        <span>抓拍抓猫</span>
+        <span>抓拍萌宠</span>
       </button>
       <button type="button" class="m-tab" data-tab="studio">
         <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 19 10-10"/><path d="M15 4v3M13.5 5.5h3"/><path d="M9 4v2M8 5h2"/><path d="M19 9v2M18 10h2"/></svg>
@@ -519,7 +540,7 @@
       </button>
       <button type="button" class="m-tab" data-tab="dex">
         <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M5 4.5A1.5 1.5 0 0 1 6.5 3H19v18H6.5A1.5 1.5 0 0 1 5 19.5v-15Z"/><path d="M8 3v18"/><path d="M11 8h5M11 12h4"/></svg>
-        <span>主子卡册</span>
+        <span>萌宠图鉴</span>
       </button>
     </nav>
   </div>
@@ -623,10 +644,241 @@
     </div>
   </div>
 
+  <!-- ═══════════════════════ MODAL 3: 沉浸式卡牌详览（对齐 iOS CardInspectView） ═══════════════════════ -->
+  <div class="inspect-backdrop" id="modal-card-inspect" hidden>
+    <div class="inspect-shell" role="dialog" aria-modal="true" aria-labelledby="inspect-card-title">
+      <div class="inspect-topbar">
+        <button type="button" class="inspect-circle-btn" id="btn-inspect-close" aria-label="收起详览">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.4"><path d="m6 9 6 6 6-6"/></svg>
+        </button>
+
+        <div class="inspect-title-box">
+          <strong id="inspect-card-title">👑 茉莉</strong>
+          <span>拖拽/滑过倾斜 · 双击翻面 · 支持编辑正背面信息</span>
+        </div>
+
+        <div class="inspect-icon-group">
+          <button type="button" class="inspect-circle-btn inspect-circle-btn--cyan" id="btn-inspect-3d" title="进入 3D 亚克力展厅" aria-label="3D 展厅">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2 3 7v10l9 5 9-5V7l-9-5Z"/><path d="M12 22V12M21 7l-9 5M3 7l9 5"/></svg>
+          </button>
+          <button type="button" class="inspect-circle-btn inspect-circle-btn--amber" id="btn-inspect-edit" title="编辑正背面信息与档案" aria-label="编辑">
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 1 1 3 3L7 19l-4 1 1-4Z"/></svg>
+          </button>
+          <button type="button" class="inspect-circle-btn inspect-circle-btn--coral" id="btn-inspect-fav" title="收藏" aria-label="收藏">♥</button>
+          <button type="button" class="inspect-circle-btn inspect-circle-btn--danger" id="btn-inspect-delete" title="删除卡片" aria-label="删除">
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M6 6l1 14h10l1-14"/></svg>
+          </button>
+        </div>
+      </div>
+
+      <div class="inspect-stage">
+        <div class="inspect-card-wrap" id="inspect-card-tilt">
+          <div class="card-flipper" id="inspect-card-flipper">
+            <div class="card-face card-face--front">
+              <canvas id="inspect-canvas-front" width="652" height="911"></canvas>
+              <div class="card-sheen" id="inspect-card-sheen"></div>
+            </div>
+            <div class="card-face card-face--back">
+              <canvas id="inspect-canvas-back" width="652" height="911"></canvas>
+            </div>
+          </div>
+          <div class="framing-guide" id="inspect-framing-guide" hidden>
+            <span>拖动宠物调整占位</span>
+          </div>
+        </div>
+
+        <div class="inspect-framing-bar">
+          <button type="button" class="inspect-pill-btn" id="btn-inspect-framing-toggle">✥ 移动 / 放大宠物</button>
+          <span class="inspect-pill-tag" id="inspect-adaptive-badge">✨ 黄金居中星阵</span>
+          <button type="button" class="inspect-pill-reset" id="btn-inspect-framing-reset">重置</button>
+        </div>
+
+        <div class="inspect-framing-sliders" id="inspect-framing-sliders" hidden>
+          <div class="slider-card__row">
+            <span>左右偏移</span>
+            <strong class="mono-val" id="inspect-ox-val">0%</strong>
+          </div>
+          <input type="range" id="inspect-slider-ox" min="-0.4" max="0.4" step="0.01" value="0">
+          <div class="slider-card__row">
+            <span>上下高度</span>
+            <strong class="mono-val" id="inspect-oy-val">0%</strong>
+          </div>
+          <input type="range" id="inspect-slider-oy" min="-0.4" max="0.4" step="0.01" value="0">
+          <div class="slider-card__row">
+            <span>主体大小</span>
+            <strong class="mono-val" id="inspect-scale-val">1.00×</strong>
+          </div>
+          <input type="range" id="inspect-slider-scale" min="0.7" max="1.85" step="0.02" value="1">
+        </div>
+      </div>
+
+      <div class="inspect-bottom-bar">
+        <button type="button" class="inspect-action-btn" id="btn-inspect-flip">↻ 看背面</button>
+        <button type="button" class="inspect-action-btn" id="btn-inspect-archive">📋 档案编辑</button>
+        <button type="button" class="inspect-action-btn inspect-action-btn--export" id="btn-inspect-export">⬆ 导出 63×88mm 4K</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════ MODAL 4: 卡牌正背面信息与档案编辑器（不跳离图鉴） ═══════════════════════ -->
+  <div class="modal-backdrop" id="modal-card-edit" hidden>
+    <div class="modal-sheet" role="dialog" aria-modal="true" aria-labelledby="card-edit-title">
+      <div class="modal-head">
+        <div>
+          <h3 id="card-edit-title">编辑卡牌正背面信息与档案</h3>
+          <p>直接修改昵称、品种、性格、爱好、语录及卡背版式，保存即更新图鉴与云端</p>
+        </div>
+        <button type="button" class="btn-icon-close" id="btn-close-card-edit" aria-label="关闭">✕</button>
+      </div>
+
+      <div class="form-block" style="padding:10px 0; overflow-y:auto; max-height:66vh;">
+        <div class="field-row two-col">
+          <div>
+            <label for="edit-card-nickname">专属昵称（卡正/背标题）</label>
+            <input type="text" id="edit-card-nickname" maxlength="16" placeholder="输入宠物昵称">
+          </div>
+          <div>
+            <label for="edit-card-suffix">稀有后缀</label>
+            <select id="edit-card-suffix" style="width:100%; min-height:38px; border-radius:10px; background:var(--surface-2); color:var(--ink-1); border:1px solid var(--border); padding:0 10px;">
+              <option value="">标准版</option>
+              <option value="ex">ex</option>
+              <option value="VSTAR">VSTAR</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="field-row two-col">
+          <div>
+            <label for="edit-card-breed">品种谱系</label>
+            <input type="text" id="edit-card-breed" maxlength="16">
+          </div>
+          <div>
+            <label for="edit-card-coat">特征花色</label>
+            <input type="text" id="edit-card-coat" maxlength="12">
+          </div>
+        </div>
+
+        <div class="field-row two-col">
+          <div>
+            <label for="edit-card-personality">主子性格</label>
+            <input type="text" id="edit-card-personality" maxlength="10">
+          </div>
+          <div>
+            <label for="edit-card-hobby">日常爱好</label>
+            <input type="text" id="edit-card-hobby" maxlength="12">
+          </div>
+        </div>
+
+        <div class="field-row two-col">
+          <div>
+            <label for="edit-card-atk">招牌萌态</label>
+            <input type="text" id="edit-card-atk" maxlength="14">
+          </div>
+          <div>
+            <label for="edit-card-hp">体力 HP</label>
+            <input type="number" id="edit-card-hp" min="60" max="320" step="10">
+          </div>
+        </div>
+
+        <div class="field-row">
+          <label for="edit-card-flavor">卡面档案语录</label>
+          <input type="text" id="edit-card-flavor" maxlength="48">
+        </div>
+
+        <div class="field-row two-col">
+          <div>
+            <label for="edit-card-location">发现地点 / 馆藏印记</label>
+            <input type="text" id="edit-card-location" maxlength="20">
+          </div>
+          <div>
+            <label for="edit-card-serial">图鉴编号</label>
+            <input type="text" id="edit-card-serial" maxlength="16">
+          </div>
+        </div>
+
+        <div class="field-row edit-back-grid">
+          <div>
+            <label for="edit-back-style">卡背设计风格</label>
+            <select id="edit-back-style" style="width:100%; min-height:38px; border-radius:10px; background:var(--surface-2); color:var(--ink-1); border:1px solid var(--border); padding:0 10px;">
+              <option value="fullArtPet">全幅放大萌宠（新）</option>
+              <option value="collectorOrb">抓宠球经典徽章</option>
+            </select>
+          </div>
+          <div>
+            <label for="edit-back-orientation">卡背方向排版</label>
+            <select id="edit-back-orientation" style="width:100%; min-height:38px; border-radius:10px; background:var(--surface-2); color:var(--ink-1); border:1px solid var(--border); padding:0 10px;">
+              <option value="auto">智能识别（猫立/狗横）</option>
+              <option value="portrait">立式竖版</option>
+              <option value="landscape">横版大画幅</option>
+            </select>
+          </div>
+        </div>
+
+        <label class="ai-checkbox" style="margin-top:6px;">
+          <input type="checkbox" id="edit-back-qr" checked>
+          <span>卡背右下角保留「扫码直达制同款」官方二维码</span>
+        </label>
+      </div>
+
+      <div class="modal-foot">
+        <button type="button" class="btn-outline" id="btn-edit-open-studio">进入全定制工坊调边框</button>
+        <button type="button" class="btn-jade" id="btn-save-card-edit">保存修改</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════ MODAL 5: 云端账号登录与双端同步面板 ═══════════════════════ -->
+  <div class="modal-backdrop" id="modal-auth" hidden>
+    <div class="modal-sheet modal-sheet--sm" role="dialog" aria-modal="true" aria-labelledby="auth-modal-title">
+      <div class="modal-head">
+        <div>
+          <h3 id="auth-modal-title">抓宠大作战 · 云端同步账号</h3>
+          <p>同一账号支持 Web 制卡台与 iOS App 双向互通同步萌宠图鉴</p>
+        </div>
+        <button type="button" class="btn-icon-close" id="btn-close-auth" aria-label="关闭">✕</button>
+      </div>
+
+      <div id="auth-guest-panel" class="form-block" style="padding:12px 0;">
+        <div class="segmented" id="auth-mode-segment" style="margin-bottom:10px;">
+          <button type="button" data-auth-mode="login" class="is-active">登录已有账号</button>
+          <button type="button" data-auth-mode="register">注册新账号</button>
+        </div>
+
+        <div class="field-row">
+          <label for="auth-input-account">账号名 / 手机号 / 邮箱</label>
+          <input type="text" id="auth-input-account" maxlength="64" placeholder="至少 3 位字符（Web 与 iOS 通用）">
+        </div>
+        <div class="field-row">
+          <label for="auth-input-password">登录密码</label>
+          <input type="password" id="auth-input-password" maxlength="72" placeholder="至少 6 位密码">
+        </div>
+        <div class="field-row" id="auth-displayname-row" hidden>
+          <label for="auth-input-displayname">训练家昵称（选填）</label>
+          <input type="text" id="auth-input-displayname" maxlength="24" placeholder="如：星际铲屎官">
+        </div>
+        <p id="auth-error-msg" style="color:#ff7e8b; font-size:12px; margin:6px 0 0;" hidden></p>
+        <div class="modal-foot" style="padding-top:12px; margin-top:8px;">
+          <button type="button" class="btn-jade" id="btn-auth-submit" style="width:100%;">登录并同步云端图鉴</button>
+        </div>
+      </div>
+
+      <div id="auth-signedin-panel" class="form-block" style="padding:12px 0;" hidden>
+        <div style="padding:14px; border-radius:14px; background:rgba(35,209,154,0.08); border:1px solid rgba(35,209,154,0.3); margin-bottom:12px;">
+          <strong id="auth-profile-name" style="display:block; font-size:15px; color:#ffffff;">—</strong>
+          <span id="auth-profile-meta" style="display:block; font-size:12px; color:rgba(214,224,242,0.75); margin-top:4px;">已连接云端图鉴库</span>
+        </div>
+        <div class="modal-foot">
+          <button type="button" class="btn-outline" id="btn-auth-logout">退出登录</button>
+          <button type="button" class="btn-jade" id="btn-auth-sync-now">立即双向同步</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- 全局轻提示 -->
   <div class="toast" id="app-toast" role="status" aria-live="polite" hidden></div>
 
-  <script type="module" src="js/app.js?v=20261127a"></script>
+  <script type="module" src="js/app.js?v=20261127b"></script>
 </body>
 </html>
 

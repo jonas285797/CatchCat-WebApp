@@ -86,6 +86,7 @@ button {
 .brand__icon {
   width: 34px;
   height: 34px;
+  flex-shrink: 0;
   border-radius: 9px;
   border: 1px solid var(--border-strong);
   object-fit: cover;
@@ -95,12 +96,14 @@ button {
   display: flex;
   flex-direction: column;
   line-height: 1.15;
+  min-width: 0;
 }
 
 .brand__name {
   font-size: 15px;
   font-weight: 800;
   letter-spacing: -0.01em;
+  white-space: nowrap;
 }
 
 .brand__tag {
@@ -108,6 +111,9 @@ button {
   font-family: var(--font-mono);
   color: var(--ink-3);
   letter-spacing: 0.04em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .desktop-tabs {
@@ -165,6 +171,7 @@ button {
   display: flex;
   align-items: center;
   gap: 8px;
+  flex-shrink: 0;
 }
 
 .btn-chip {
@@ -179,6 +186,8 @@ button {
   font-size: 12.5px;
   font-weight: 600;
   color: var(--ink-2);
+  white-space: nowrap;
+  flex-shrink: 0;
   transition: background 0.18s, transform 0.15s;
 }
 
@@ -197,6 +206,8 @@ button {
   color: var(--on-citrine);
   font-size: 12.5px;
   font-weight: 800;
+  white-space: nowrap;
+  flex-shrink: 0;
   cursor: pointer;
   transition: filter 0.18s, transform 0.15s;
 }
@@ -398,7 +409,7 @@ body.tab-studio .topbar {
   position: relative;
   width: 100%;
   max-width: 214px;
-  aspect-ratio: 326 / 456;
+  aspect-ratio: 63 / 88;
   transform-style: preserve-3d;
   transition: transform 0.38s var(--ease);
   touch-action: pan-y;
@@ -425,7 +436,7 @@ body.tab-studio .topbar {
   position: absolute;
   inset: 0;
   backface-visibility: hidden;
-  border-radius: 6.135% / 4.386%;
+  border-radius: 4.762% / 3.409%;
   overflow: hidden;
   background: transparent;
   box-shadow: var(--shadow-card);
@@ -460,7 +471,7 @@ body.tab-studio .topbar {
   position: absolute;
   inset: 0;
   border: 2px dashed var(--citrine);
-  border-radius: 6.135% / 4.386%;
+  border-radius: 4.762% / 3.409%;
   pointer-events: none;
   display: flex;
   align-items: flex-end;
@@ -1843,42 +1854,56 @@ input[type="range"] {
 .snack-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 7px;
+  gap: 8px;
 }
 
 .snack-card {
-  padding: 8px 4px 7px;
-  border-radius: var(--r-md);
-  background: var(--bg);
-  border: 1px solid var(--border);
+  padding: 2px 2px 4px;
+  border-radius: 0;
+  background: transparent;
+  border: none;
+  box-shadow: none;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 4px;
   text-align: center;
-  transition: transform 0.14s var(--ease), border-color 0.18s, background 0.18s;
+  transition: transform 0.14s var(--ease);
 }
 
 .snack-card:active {
-  transform: scale(0.94);
+  transform: scale(0.92);
 }
 
-.snack-card.is-fed {
+.snack-card__media {
+  width: 58px;
+  height: 58px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: transparent;
+  border: 1.5px solid transparent;
+  transition: transform 0.16s var(--ease), border-color 0.18s;
+}
+
+.snack-card.is-fed .snack-card__media {
   border-color: var(--citrine);
-  background: var(--citrine-soft);
+  transform: scale(1.07);
 }
 
 .snack-card img {
-  width: 44px;
-  height: 44px;
+  width: 54px;
+  height: 54px;
   object-fit: contain;
   display: block;
+  filter: none;
+  box-shadow: none;
 }
 
 .snack-card strong {
   font-size: 11px;
   font-weight: 700;
-  color: var(--ink-1);
+  color: rgba(244, 247, 252, 0.92);
   line-height: 1.2;
   white-space: nowrap;
 }
@@ -2118,4 +2143,248 @@ input[type="range"] {
     animation-duration: 0.01ms !important;
   }
 }
+
+/* ── 云端账号状态胶囊 & 图鉴顶栏 ── */
+.cloud-auth-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+  padding: 4px 12px;
+  border-radius: 999px;
+  background: rgba(255, 184, 26, 0.12);
+  border: 1px solid rgba(255, 184, 26, 0.42);
+  color: #ffb81a;
+  font-size: 11.5px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+.cloud-auth-pill.is-signed-in {
+  background: rgba(35, 209, 154, 0.14);
+  border-color: rgba(35, 209, 154, 0.45);
+  color: #34e0a8;
+}
+.dex-fav-dot {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: rgba(15, 22, 38, 0.84);
+  display: grid;
+  place-items: center;
+  font-size: 12px;
+}
+.dex-card__thumb {
+  position: relative;
+}
+
+/* ── 全屏沉浸式卡牌详情检查器（对齐 iOS CardInspectView）── */
+.inspect-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 75;
+  background: linear-gradient(180deg, #141e33 0%, #0a101f 55%, #050811 100%);
+  display: flex;
+  flex-direction: column;
+  padding: calc(env(safe-area-inset-top) + 12px) 18px calc(env(safe-area-inset-bottom) + 20px);
+  overflow-y: auto;
+}
+.inspect-backdrop[hidden] {
+  display: none;
+}
+.inspect-shell {
+  width: min(520px, 100%);
+  min-height: 100%;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 12px;
+}
+.inspect-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.inspect-title-box {
+  text-align: center;
+  flex: 1;
+  min-width: 0;
+}
+.inspect-title-box strong {
+  display: block;
+  font-size: 16px;
+  font-weight: 900;
+  color: #ffffff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.inspect-title-box span {
+  display: block;
+  font-size: 10.5px;
+  color: rgba(214, 224, 242, 0.62);
+}
+.inspect-icon-group {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.inspect-circle-btn {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: #232d45;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  color: #ffffff;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  transition: transform 0.14s ease, border-color 0.16s ease;
+}
+.inspect-circle-btn:active { transform: scale(0.92); }
+.inspect-circle-btn--cyan { color: #7ae5ff; border-color: rgba(122, 229, 255, 0.35); }
+.inspect-circle-btn--amber { color: #ffb81a; }
+.inspect-circle-btn--coral { color: #ff6b7d; border-color: rgba(255, 107, 125, 0.45); }
+.inspect-circle-btn--danger { color: #ff7070; }
+
+.inspect-stage {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  perspective: 1200px;
+}
+.inspect-card-wrap {
+  width: min(306px, 78vw, 52vh);
+  aspect-ratio: 63 / 88;
+  position: relative;
+  transform-style: preserve-3d;
+  transition: transform 0.35s var(--ease);
+  touch-action: pan-y;
+}
+.inspect-card-wrap.is-framing {
+  touch-action: none;
+  cursor: move;
+}
+.inspect-framing-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+.inspect-pill-btn {
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 11.5px;
+  font-weight: 800;
+  background: rgba(245, 184, 46, 0.14);
+  border: 1px solid rgba(245, 184, 46, 0.42);
+  color: #ffb81a;
+}
+.inspect-pill-btn.is-active {
+  background: #ffb81a;
+  color: #14171c;
+}
+.inspect-pill-tag {
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 800;
+  background: rgba(14, 52, 42, 0.86);
+  border: 1px solid rgba(35, 209, 154, 0.40);
+  color: #48ebba;
+}
+.inspect-pill-reset {
+  padding: 6px 11px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  background: #232d45;
+  color: rgba(255, 255, 255, 0.85);
+}
+.inspect-framing-sliders {
+  width: min(320px, 90vw);
+  padding: 10px 14px;
+  border-radius: 14px;
+  background: rgba(20, 29, 48, 0.88);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  display: grid;
+  gap: 6px;
+}
+.inspect-framing-sliders[hidden] { display: none; }
+.inspect-bottom-bar {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1.25fr;
+  gap: 10px;
+}
+.inspect-action-btn {
+  min-height: 44px;
+  padding: 10px 10px;
+  border-radius: 999px;
+  background: #22304d;
+  border: 1px solid rgba(255, 255, 255, 0.20);
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 900;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+.inspect-action-btn--export {
+  background: linear-gradient(90deg, #ffb81a, #ff7056);
+  border: none;
+  color: #14171c;
+}
+
+.edit-back-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+@media (max-width: 520px) {
+  .topbar {
+    padding: calc(env(safe-area-inset-top) + 8px) 12px 8px;
+    gap: 8px;
+  }
+  .brand {
+    gap: 8px;
+  }
+  .brand__icon {
+    width: 30px;
+    height: 30px;
+  }
+  .brand__name {
+    font-size: 14px;
+  }
+  .brand__tag {
+    display: none;
+  }
+  .topbar__actions {
+    gap: 6px;
+  }
+  .cloud-auth-pill {
+    padding: 4px 9px;
+    min-height: 32px;
+    font-size: 11px;
+  }
+  .btn-chip {
+    min-height: 32px;
+    padding: 6px 9px;
+  }
+  .btn-primary-sm {
+    min-height: 32px;
+    padding: 6px 11px;
+    font-size: 12px;
+  }
+}
+
 

@@ -1,0 +1,26 @@
+{
+  "name": "catchpet-studio",
+  "version": "2.0.0",
+  "description": "零构建纯静态 PWA / H5 + 桌面全功能宠物闪卡制作工坊，打开网页即可使用：",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jonas285797/CatchCat-WebApp.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "bugs": {
+    "url": "https://github.com/jonas285797/CatchCat-WebApp/issues"
+  },
+  "homepage": "https://github.com/jonas285797/CatchCat-WebApp#readme",
+  "private": true,
+  "dependencies": {
+    "@netlify/blobs": "^11.1.12",
+    "@netlify/functions": "^6.1.2"
+  }
+}

@@ -1,9 +1,9 @@
-import { BORDER_PRESETS } from './presets.js?v=20261127a';
-import { getCardDisplayTitle, resolveEffectiveBorderId } from './cardRenderer.js?v=20261127a';
+import { BORDER_PRESETS } from './presets.js?v=20261127b';
+import { getCardDisplayTitle, resolveEffectiveBorderId } from './cardRenderer.js?v=20261127b';
 
 const CARD_W = 2.6;
-const CARD_H = CARD_W * (456 / 326);
-const CARD_R = CARD_W * (20 / 326);
+const CARD_H = CARD_W * (88 / 63);
+const CARD_R = CARD_W * (3.0 / 63.0);
 
 function createRoundedRectShape(w, h, r) {
   const hw = w * 0.5;
@@ -407,7 +407,7 @@ export class Card3DShowcase {
     ctx.font = '800 24px Menlo, monospace';
     ctx.textAlign = 'left';
     ctx.textBaseline = 'middle';
-    ctx.fillText('CATCHCAT GRADING · GEM MT 10', 26, 40);
+    ctx.fillText('CATCHPET GRADING · GEM MT 10', 26, 40);
 
     ctx.fillStyle = '#eef2f6';
     ctx.font = '800 30px "PingFang SC", sans-serif';
