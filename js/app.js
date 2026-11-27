@@ -4,11 +4,14 @@ import {
   BACKGROUND_PRESETS,
   FX_PRESETS,
   BADGE_PRESETS,
+  PERSONALITY_CHIPS,
+  HOBBY_CHIPS,
+  BREED_QUICK_PICKS,
   SAMPLE_CARDS,
   CAT_SNACKS,
   DOG_SNACKS,
   resolveAdaptiveFX
-} from './presets.js?v=20261126f';
+} from './presets.js?v=20261127a';
 import {
   loadImageCached,
   getEnergyConfig,
@@ -16,11 +19,11 @@ import {
   renderCardFrontToCanvas,
   renderCardBackToCanvas,
   exportCard4KBlob
-} from './cardRenderer.js?v=20261126f';
-import { WebCutoutEngine, preloadNeuralMatting } from './cutout.js?v=20261126f';
-import { getAISettings, saveAISettings, analyzePetSmart } from './ai.js?v=20261126f';
-import { loadAllCards, upsertCard, removeCard, getTrainerLevelInfo, grantTrainerXP } from './storage.js?v=20261126f';
-import { Card3DShowcase } from './showcase3d.js?v=20261126f';
+} from './cardRenderer.js?v=20261127a';
+import { WebCutoutEngine, preloadNeuralMatting } from './cutout.js?v=20261127a';
+import { getAISettings, saveAISettings, analyzePetSmart } from './ai.js?v=20261127a';
+import { loadAllCards, upsertCard, removeCard, getTrainerLevelInfo, grantTrainerXP } from './storage.js?v=20261127a';
+import { Card3DShowcase } from './showcase3d.js?v=20261127a';
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
@@ -47,6 +50,9 @@ const state = {
   showcase: null,
   cutoutEngine: new WebCutoutEngine(),
   cutoutLoadedSrc: false,
+  cutoutOriginalImg: null,
+  cutoutHintSpecies: 'auto',
+  cutoutHintBreed: '',
   cutoutRunId: 0,
   activeMattingPromise: null,
   cutoutDrawRect: { x: 0, y: 0, w: 640, h: 640 },
@@ -142,9 +148,14 @@ const dom = {
   hpVal: $('#hp-val'),
   suffixBtns: $$('#suffix-segment button[data-suffix]'),
   energyPills: $('#energy-pills'),
+  inputPersonality: $('#input-personality'),
+  inputHobby: $('#input-hobby'),
+  personalityChips: $('#personality-chips'),
+  hobbyChips: $('#hobby-chips'),
   inputAtkName: $('#input-atk-name'),
   inputAtkDmg: $('#input-atk-dmg'),
   inputFlavor: $('#input-card-flavor'),
+  chkBackQr: $('#chk-back-qr'),
 
   adaptiveTitle: $('#adaptive-zone-title'),
   adaptiveHint: $('#adaptive-zone-hint'),
@@ -192,6 +203,8 @@ const dom = {
   sliderCutoutFeather: $('#slider-cutout-feather'),
   cutoutFeatherVal: $('#cutout-feather-val'),
   btnCutoutReset: $('#btn-cutout-reset'),
+  cutoutSpeciesBtns: $$('#cutout-species-segment button[data-species]'),
+  cutoutBreedPicks: $('#cutout-breed-picks'),
   chkAutoAi: $('#chk-auto-ai'),
   btnCutoutUseFull: $('#btn-cutout-use-full'),
   btnCutoutConfirm: $('#btn-cutout-confirm'),
@@ -314,9 +327,24 @@ function syncControlsFromCurrentCard() {
     btn.classList.toggle('is-active', btn.dataset.id === (card.energyType || 'food'));
   });
 
+  if (dom.inputPersonality) {
+    dom.inputPersonality.value = card.personalityTag || card.abilityName || '';
+  }
+  if (dom.inputHobby) {
+    dom.inputHobby.value = card.hobbyTag || card.attackName || '';
+  }
+  $$('.chip-pill', dom.personalityChips).forEach((btn) => {
+    btn.classList.toggle('is-active', btn.dataset.val === (card.personalityTag || card.abilityName || ''));
+  });
+  $$('.chip-pill', dom.hobbyChips).forEach((btn) => {
+    btn.classList.toggle('is-active', btn.dataset.val === (card.hobbyTag || card.attackName || ''));
+  });
   dom.inputAtkName.value = card.attackName || '';
   dom.inputAtkDmg.value = String(card.attackDamage ?? 120);
   dom.inputFlavor.value = card.flavorText || '';
+  if (dom.chkBackQr) {
+    dom.chkBackQr.checked = card.showBackQRCode !== false;
+  }
 
   // Framing sliders
   const ox = Number(card.subjectOffsetX || 0);
@@ -451,6 +479,69 @@ function buildStaticPalettes() {
       renderDexGrid();
     });
     dom.dexEnergyFilter.appendChild(btn);
+  });
+
+  // 7. Personality & Hobby Quick Chips + Cutout Breed Picks
+  if (dom.personalityChips) {
+    dom.personalityChips.innerHTML = '';
+    PERSONALITY_CHIPS.forEach((label) => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'chip-pill';
+      btn.dataset.val = label;
+      btn.textContent = label;
+      btn.addEventListener('click', () => {
+        state.currentCard.personalityTag = label;
+        state.currentCard.abilityName = label;
+        syncControlsFromCurrentCard();
+        scheduleStudioRender();
+      });
+      dom.personalityChips.appendChild(btn);
+    });
+  }
+
+  if (dom.hobbyChips) {
+    dom.hobbyChips.innerHTML = '';
+    HOBBY_CHIPS.forEach((label) => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'chip-pill';
+      btn.dataset.val = label;
+      btn.textContent = label;
+      btn.addEventListener('click', () => {
+        state.currentCard.hobbyTag = label;
+        syncControlsFromCurrentCard();
+        scheduleStudioRender();
+      });
+      dom.hobbyChips.appendChild(btn);
+    });
+  }
+
+  if (dom.cutoutBreedPicks) {
+    dom.cutoutBreedPicks.innerHTML = '';
+    BREED_QUICK_PICKS.forEach((pick) => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'chip-pill';
+      btn.dataset.breed = pick.label;
+      btn.textContent = `${pick.species === 'dog' ? '🐶' : '🐱'} ${pick.label.replace(/\(.*?\)/g, '')}`;
+      btn.addEventListener('click', () => {
+        const nextBreed = state.cutoutHintBreed === pick.label ? '' : pick.label;
+        state.cutoutHintBreed = nextBreed;
+        if (nextBreed) state.cutoutHintSpecies = pick.species;
+        syncCutoutSpeciesUI();
+      });
+      dom.cutoutBreedPicks.appendChild(btn);
+    });
+  }
+}
+
+function syncCutoutSpeciesUI() {
+  dom.cutoutSpeciesBtns?.forEach((btn) => {
+    btn.classList.toggle('is-active', btn.dataset.species === state.cutoutHintSpecies);
+  });
+  $$('.chip-pill', dom.cutoutBreedPicks).forEach((btn) => {
+    btn.classList.toggle('is-active', btn.dataset.breed === state.cutoutHintBreed);
   });
 }
 
@@ -729,11 +820,12 @@ async function syncShowcaseCard() {
   }
 
   const cutout = state.activeCutoutImg || (await ensureCutoutLoaded(card));
+  const backEmblem = await loadImageCached('assets/app-icon.png');
   const frontHiRes = document.createElement('canvas');
   const backHiRes = document.createElement('canvas');
   // 4.5x scale => 1467 × 2052 crispy PBR card textures for WebGL close-up zoom
   renderCardFrontToCanvas(frontHiRes, card, cutout, 4.5);
-  renderCardBackToCanvas(backHiRes, card, 4.5);
+  renderCardBackToCanvas(backHiRes, card, 4.5, backEmblem);
 
   state.showcase.updateCardTextures(frontHiRes, backHiRes, card);
   await state.showcase.ensureInitialized();
@@ -760,6 +852,9 @@ async function getCardThumbDataUrl(card) {
     card.suffix,
     card.hp,
     card.energyType,
+    card.personalityTag,
+    card.hobbyTag,
+    card.showBackQRCode !== false ? '1' : '0',
     card.subjectOffsetX,
     card.subjectOffsetY,
     card.subjectScale
@@ -940,6 +1035,10 @@ async function runMattingAndRedraw() {
 }
 
 function openCutoutModalWithImage(img) {
+  state.cutoutOriginalImg = img;
+  state.cutoutHintSpecies = 'auto';
+  state.cutoutHintBreed = '';
+  syncCutoutSpeciesUI();
   state.cutoutEngine.loadImage(img, 640);
   state.cutoutLoadedSrc = true;
   dom.modalCutout.hidden = false;
@@ -1169,6 +1268,19 @@ function bindEvents() {
     state.currentCard.flavorText = dom.inputFlavor.value;
     scheduleStudioRender();
   });
+  dom.inputPersonality?.addEventListener('input', () => {
+    state.currentCard.personalityTag = dom.inputPersonality.value;
+    state.currentCard.abilityName = dom.inputPersonality.value || state.currentCard.abilityName;
+    scheduleStudioRender();
+  });
+  dom.inputHobby?.addEventListener('input', () => {
+    state.currentCard.hobbyTag = dom.inputHobby.value;
+    scheduleStudioRender();
+  });
+  dom.chkBackQr?.addEventListener('change', () => {
+    state.currentCard.showBackQRCode = dom.chkBackQr.checked;
+    scheduleStudioRender();
+  });
 
   // Framing sliders
   dom.sliderOx.addEventListener('input', () => {
@@ -1365,6 +1477,16 @@ function bindEvents() {
     state.cutoutEngine.resetManualEdits();
     runMattingAndRedraw();
   });
+  dom.cutoutSpeciesBtns?.forEach((btn) => {
+    btn.addEventListener('click', () => {
+      state.cutoutHintSpecies = btn.dataset.species || 'auto';
+      if (state.cutoutHintSpecies !== 'dog' && state.cutoutHintBreed) {
+        const picked = BREED_QUICK_PICKS.find((b) => b.label === state.cutoutHintBreed);
+        if (picked && picked.species !== state.cutoutHintSpecies) state.cutoutHintBreed = '';
+      }
+      syncCutoutSpeciesUI();
+    });
+  });
 
   dom.cutoutCanvas.addEventListener('pointerdown', (e) => {
     if (!state.cutoutLoadedSrc) return;
@@ -1409,8 +1531,12 @@ function bindEvents() {
     await switchTab('studio');
 
     if (runAi && img) {
-      showToast('抠图已上线，正在智能鉴定花色与生成绝招…', 3000);
-      const aiMeta = await analyzePetSmart(img);
+      showToast('抠图已上线，正在智能鉴定品种、性格与爱好…', 3000);
+      const aiMeta = await analyzePetSmart(img, {
+        originalEl: state.cutoutOriginalImg || img,
+        hintSpecies: state.cutoutHintSpecies,
+        hintBreed: state.cutoutHintBreed
+      });
       if (aiMeta) {
         state.currentCard.name = aiMeta.name || state.currentCard.name;
         state.currentCard.customNickname = '';
@@ -1419,7 +1545,10 @@ function bindEvents() {
         state.currentCard.energyType = aiMeta.energyType || state.currentCard.energyType;
         state.currentCard.hp = aiMeta.hp || state.currentCard.hp;
         state.currentCard.suffix = aiMeta.suffix ?? state.currentCard.suffix;
+        state.currentCard.personalityTag = aiMeta.personalityTag || aiMeta.abilityName || state.currentCard.personalityTag;
+        state.currentCard.hobbyTag = aiMeta.hobbyTag || aiMeta.attackName || state.currentCard.hobbyTag;
         state.currentCard.abilityName = aiMeta.abilityName || state.currentCard.abilityName;
+        state.currentCard.abilityDesc = aiMeta.abilityDesc || state.currentCard.abilityDesc;
         state.currentCard.attackName = aiMeta.attackName || state.currentCard.attackName;
         state.currentCard.attackDamage = aiMeta.attackDamage || state.currentCard.attackDamage;
         state.currentCard.flavorText = aiMeta.flavorText || state.currentCard.flavorText;
@@ -1507,7 +1636,10 @@ async function init() {
   syncCaptureHUD();
   bindEvents();
   updateDexBadgeCount();
-  await ensureCutoutLoaded(state.currentCard);
+  await Promise.all([
+    ensureCutoutLoaded(state.currentCard),
+    loadImageCached('assets/app-icon.png')
+  ]);
   syncControlsFromCurrentCard();
   renderStudioNow();
   startCameraStream(false);

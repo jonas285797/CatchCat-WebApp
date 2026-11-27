@@ -20,7 +20,7 @@
     }
   }
   </script>
-  <link rel="stylesheet" href="styles.css?v=20261126f">
+  <link rel="stylesheet" href="styles.css?v=20261127a">
 </head>
 <body>
   <div class="app-shell">
@@ -346,11 +346,24 @@
 
                   <div class="field-row two-col">
                     <div>
-                      <label for="input-atk-name">招牌绝招</label>
-                      <input type="text" id="input-atk-name" maxlength="14" placeholder="招牌招式名">
+                      <label for="input-personality">主子性格</label>
+                      <input type="text" id="input-personality" maxlength="10" placeholder="如：干饭粘人精">
                     </div>
                     <div>
-                      <label for="input-atk-dmg">招式威力</label>
+                      <label for="input-hobby">日常爱好</label>
+                      <input type="text" id="input-hobby" maxlength="12" placeholder="如：晒太阳踩奶">
+                    </div>
+                  </div>
+                  <div class="chip-row" id="personality-chips"></div>
+                  <div class="chip-row" id="hobby-chips"></div>
+
+                  <div class="field-row two-col">
+                    <div>
+                      <label for="input-atk-name">招牌萌态</label>
+                      <input type="text" id="input-atk-name" maxlength="14" placeholder="招牌日常动作">
+                    </div>
+                    <div>
+                      <label for="input-atk-dmg">萌力指数</label>
                       <input type="number" id="input-atk-dmg" min="10" max="300" step="10" value="180">
                     </div>
                   </div>
@@ -359,6 +372,11 @@
                     <label for="input-card-flavor">图鉴签名语录</label>
                     <input type="text" id="input-card-flavor" maxlength="48" placeholder="记录这只主子的可爱瞬间…">
                   </div>
+
+                  <label class="ai-checkbox" style="margin-top:4px;">
+                    <input type="checkbox" id="chk-back-qr" checked>
+                    <span>卡背展示「扫码直达制同款」二维码</span>
+                  </label>
                 </div>
               </div>
 
@@ -492,7 +510,7 @@
         <span>抓拍抓猫</span>
       </button>
       <button type="button" class="m-tab" data-tab="studio">
-        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m15 4-9.5 9.5a2.1 2.1 0 0 0 3 3L18 7a2.1 2.1 0 1 0-3-3Z"/><path d="M19 14v5M16.5 16.5h5"/></svg>
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 19 10-10"/><path d="M15 4v3M13.5 5.5h3"/><path d="M9 4v2M8 5h2"/><path d="M19 9v2M18 10h2"/></svg>
         <span>制卡工坊</span>
       </button>
       <button type="button" class="m-tab" data-tab="showcase">
@@ -500,7 +518,7 @@
         <span>3D 展厅</span>
       </button>
       <button type="button" class="m-tab" data-tab="dex">
-        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="4" y="3" width="16" height="18" rx="3"/><path d="M8 8h8M8 12h5"/></svg>
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M5 4.5A1.5 1.5 0 0 1 6.5 3H19v18H6.5A1.5 1.5 0 0 1 5 19.5v-15Z"/><path d="M8 3v18"/><path d="M11 8h5M11 12h4"/></svg>
         <span>主子卡册</span>
       </button>
     </nav>
@@ -554,9 +572,20 @@
             <label class="btn-chip" for="photo-file-input">换一张照</label>
           </div>
 
+          <div class="tool-group">
+            <span class="field-label">物种提示（如黑白边牧/柯基可先点🐶防误判）</span>
+            <div class="cutout-species-bar" id="cutout-species-segment">
+              <button type="button" data-species="auto" class="is-active">智能识别</button>
+              <button type="button" data-species="cat">🐱 猫咪</button>
+              <button type="button" data-species="dog">🐶 狗狗</button>
+              <button type="button" data-species="small">🐾 小宠</button>
+            </div>
+            <div class="chip-row chip-row--scroll" id="cutout-breed-picks"></div>
+          </div>
+
           <label class="ai-checkbox">
             <input type="checkbox" id="chk-auto-ai" checked>
-            <span>完成抠图后顺便 AI 识别品种、花色与绝招</span>
+            <span>完成抠图后顺便 AI 识别品种、性格与爱好</span>
           </label>
         </div>
       </div>
@@ -597,7 +626,7 @@
   <!-- 全局轻提示 -->
   <div class="toast" id="app-toast" role="status" aria-live="polite" hidden></div>
 
-  <script type="module" src="js/app.js?v=20261126f"></script>
+  <script type="module" src="js/app.js?v=20261127a"></script>
 </body>
 </html>
 

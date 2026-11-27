@@ -1,4 +1,4 @@
-import { SAMPLE_CARDS } from './presets.js?v=20261126f';
+import { SAMPLE_CARDS } from './presets.js?v=20261127a';
 
 const DB_NAME = 'CatchCatStudioDB';
 const DB_VERSION = 1;
@@ -27,32 +27,33 @@ export async function loadAllCards() {
       req.onsuccess = () => resolve(req.result || []);
       req.onerror = () => reject(req.error);
     });
-    const seeded = localStorage.getItem('CatchCat_Web_SeededV1') === '1';
-    if (rows.length > 0 && seeded) {
+    const seededV2 = localStorage.getItem('CatchCat_Web_SeededV2') === '1';
+    if (rows.length > 0 && seededV2) {
       return rows.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
     }
-    // 首次进入采用单事务原子写入 4 张高清透明抠图示范卡，避免中断重载导致部分写入
-    if (rows.length === 0 || !seeded) {
-      await new Promise((resolve, reject) => {
-        const tx = db.transaction(STORE_CARDS, 'readwrite');
-        const store = tx.objectStore(STORE_CARDS);
-        const existingIds = new Set(rows.map((r) => r.id));
-        for (const s of SAMPLE_CARDS) {
-          if (!existingIds.has(s.id)) store.put({ ...s });
+    // 首次进入或升级至 V2 时原子更新 4 张官方示范卡（保留用户自建卡不受影响）
+    await new Promise((resolve, reject) => {
+      const tx = db.transaction(STORE_CARDS, 'readwrite');
+      const store = tx.objectStore(STORE_CARDS);
+      const existingById = new Map(rows.map((r) => [r.id, r]));
+      for (const s of SAMPLE_CARDS) {
+        const prev = existingById.get(s.id);
+        if (!prev || !prev.personalityTag) {
+          store.put({ ...s });
         }
-        tx.oncomplete = () => resolve();
-        tx.onerror = () => reject(tx.error);
-      });
-      localStorage.setItem('CatchCat_Web_SeededV1', '1');
-      const merged = await new Promise((resolve, reject) => {
-        const tx = db.transaction(STORE_CARDS, 'readonly');
-        const req = tx.objectStore(STORE_CARDS).getAll();
-        req.onsuccess = () => resolve(req.result || []);
-        req.onerror = () => reject(req.error);
-      });
-      return merged.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
-    }
-    return rows.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+      }
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+    localStorage.setItem('CatchCat_Web_SeededV1', '1');
+    localStorage.setItem('CatchCat_Web_SeededV2', '1');
+    const merged = await new Promise((resolve, reject) => {
+      const tx = db.transaction(STORE_CARDS, 'readonly');
+      const req = tx.objectStore(STORE_CARDS).getAll();
+      req.onsuccess = () => resolve(req.result || []);
+      req.onerror = () => reject(req.error);
+    });
+    return merged.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
   } catch {
     return [...SAMPLE_CARDS];
   }

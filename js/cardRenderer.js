@@ -5,7 +5,8 @@ import {
   FX_PRESETS,
   BADGE_PRESETS,
   resolveAdaptiveFX
-} from './presets.js?v=20261126f';
+} from './presets.js?v=20261127a';
+import { drawQRToCanvas } from './qr.js?v=20261127a';
 
 export const CARD_LOGICAL_W = 326;
 export const CARD_LOGICAL_H = 456;
@@ -15,6 +16,7 @@ const FONT_STACK = `'PingFang SC', 'Hiragino Sans GB', 'Noto Sans SC', 'Inter', 
 const MONO_STACK = `'SF Mono', 'JetBrains Mono', 'Menlo', monospace`;
 
 const imageCache = new Map();
+let cachedBackEmblemImg = null;
 
 export function loadImageCached(src) {
   if (!src) return Promise.resolve(null);
@@ -36,6 +38,10 @@ export function loadImageCached(src) {
   imageCache.set(src, promise);
   return promise;
 }
+
+loadImageCached('assets/app-icon.png').then((img) => {
+  if (img) cachedBackEmblemImg = img;
+});
 
 export function getEnergyConfig(energyType) {
   return ENERGY_TYPES.find((e) => e.id === energyType) || ENERGY_TYPES[0];
@@ -985,7 +991,7 @@ export function renderCardFrontToCanvas(canvas, card, cutoutImg, scale = 2) {
   ctx.textAlign = 'left';
   ctx.fillText(atkName, atkX, cursorY + 1.5);
 
-  // 7. Metallic Stat Bar (Weakness / Resistance / Retreat)
+  // 7. Metallic Profile Bar (Personality / Hobby / Coat Pattern)
   const statY = 360;
   roundPath(ctx, 20, statY, W - 40, 21, 7);
   ctx.fillStyle = makeLinearGrad(ctx, 20, statY, 20, statY + 21, ['#eff2f7', '#c5cddb', '#e5eaf2']);
@@ -994,20 +1000,24 @@ export function renderCardFrontToCanvas(canvas, card, cutoutImg, scale = 2) {
   ctx.lineWidth = 0.7;
   ctx.stroke();
 
+  const pLabel = (card.personalityTag || card.abilityName || '元气粘人').slice(0, 6);
+  const hLabel = (card.hobbyTag || card.attackName || '晒太阳贴贴').slice(0, 7);
+  const cLabel = (card.coatPattern || '全息珍藏').slice(0, 6);
+
   ctx.textBaseline = 'middle';
-  ctx.font = `700 8.4px ${FONT_STACK}`;
+  ctx.font = `700 8px ${FONT_STACK}`;
   ctx.fillStyle = '#1c202a';
   ctx.textAlign = 'left';
-  ctx.fillText('弱点  ×2', 30, statY + 10.8);
+  ctx.fillText(`性格 ${pLabel}`, 26, statY + 10.8);
   ctx.textAlign = 'center';
-  ctx.fillText('抵抗力  -30', W * 0.5, statY + 10.8);
+  ctx.fillText(`爱好 ${hLabel}`, W * 0.5, statY + 10.8);
   ctx.textAlign = 'right';
-  ctx.fillText('撤退  ••', W - 30, statY + 10.8);
+  ctx.fillText(cLabel, W - 26, statY + 10.8);
 
-  // Vertical hairline separators inside stat bar
+  // Vertical hairline separators inside profile bar
   ctx.strokeStyle = 'rgba(0,0,0,0.16)';
   ctx.lineWidth = 0.75;
-  [W * 0.36, W * 0.64].forEach((vx) => {
+  [W * 0.34, W * 0.67].forEach((vx) => {
     ctx.beginPath();
     ctx.moveTo(vx, statY + 4.5);
     ctx.lineTo(vx, statY + 16.5);
@@ -1091,7 +1101,7 @@ export function renderCardFrontToCanvas(canvas, card, cutoutImg, scale = 2) {
   ctx.restore();
 }
 
-export function renderCardBackToCanvas(canvas, card, scale = 2) {
+export function renderCardBackToCanvas(canvas, card, scale = 2, emblemImg = null) {
   if (!canvas) return;
   const W = CARD_LOGICAL_W;
   const H = CARD_LOGICAL_H;
@@ -1108,6 +1118,7 @@ export function renderCardBackToCanvas(canvas, card, scale = 2) {
   const borderId = resolveEffectiveBorderId(card);
   const border = BORDER_PRESETS.find((b) => b.id === borderId) || BORDER_PRESETS[1];
   const badgeId = resolveEffectiveBadgeId(card);
+  const orbIcon = emblemImg || cachedBackEmblemImg;
 
   ctx.save();
   roundPath(ctx, 0, 0, W, H, CARD_OUTER_RADIUS);
@@ -1123,19 +1134,21 @@ export function renderCardBackToCanvas(canvas, card, scale = 2) {
   roundPath(ctx, plate.x, plate.y, plate.w, plate.h, plate.r);
   ctx.clip();
 
-  const backGrad = ctx.createRadialGradient(W * 0.5, H * 0.46, 12, W * 0.5, H * 0.48, H * 0.65);
+  const backGrad = ctx.createRadialGradient(W * 0.5, H * 0.40, 12, W * 0.5, H * 0.44, H * 0.68);
   backGrad.addColorStop(0, '#1e355e');
   backGrad.addColorStop(0.55, '#111d36');
   backGrad.addColorStop(1, '#090e1c');
   ctx.fillStyle = backGrad;
   ctx.fillRect(plate.x, plate.y, plate.w, plate.h);
 
-  // Guilloche vector swirl rings
+  // Guilloche vector swirl rings centered around CatchCat Orb
+  const cx = W * 0.5;
+  const cy = 176;
   ctx.save();
-  ctx.translate(W * 0.5, H * 0.46);
+  ctx.translate(cx, cy);
   ctx.strokeStyle = 'rgba(228, 189, 70, 0.16)';
   ctx.lineWidth = 1;
-  for (let r = 34; r <= 170; r += 22) {
+  for (let r = 42; r <= 190; r += 24) {
     ctx.beginPath();
     ctx.arc(0, 0, r, 0, Math.PI * 2);
     ctx.stroke();
@@ -1143,8 +1156,8 @@ export function renderCardBackToCanvas(canvas, card, scale = 2) {
   for (let a = 0; a < 12; a += 1) {
     const rad = (a * Math.PI) / 6;
     ctx.beginPath();
-    ctx.moveTo(Math.cos(rad) * 32, Math.sin(rad) * 32);
-    ctx.lineTo(Math.cos(rad) * 165, Math.sin(rad) * 165);
+    ctx.moveTo(Math.cos(rad) * 40, Math.sin(rad) * 40);
+    ctx.lineTo(Math.cos(rad) * 185, Math.sin(rad) * 185);
     ctx.stroke();
   }
   ctx.restore();
@@ -1159,68 +1172,101 @@ export function renderCardBackToCanvas(canvas, card, scale = 2) {
   ctx.lineWidth = 0.8;
   ctx.stroke();
 
-  // Top & Bottom Plaque Banners
+  // Top Edition Banner
   ctx.fillStyle = '#e7be56';
-  ctx.font = `800 10px ${MONO_STACK}`;
+  ctx.font = `800 9.5px ${MONO_STACK}`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillText('CATCHCAT COLLECTOR EDITION', W * 0.5, 42);
+  ctx.fillText('CATCHCAT · COLLECTOR EDITION', W * 0.5, 34);
 
-  // Central Orb Crest
-  const cx = W * 0.5;
-  const cy = H * 0.44;
+  // Central CatchCat Orb Crest (Pokeball geometry + official Dual-Pet Emblem lens)
   const outerR = 54;
-
-  const halo = ctx.createRadialGradient(cx, cy, 18, cx, cy, outerR + 30);
-  halo.addColorStop(0, `${energy.orb[0]}55`);
+  const halo = ctx.createRadialGradient(cx, cy, 20, cx, cy, outerR + 34);
+  halo.addColorStop(0, `${energy.orb[0]}58`);
   halo.addColorStop(1, 'rgba(0,0,0,0)');
   ctx.fillStyle = halo;
   ctx.beginPath();
-  ctx.arc(cx, cy, outerR + 30, 0, Math.PI * 2);
+  ctx.arc(cx, cy, outerR + 34, 0, Math.PI * 2);
   ctx.fill();
 
-  // Upper red/gold sphere, lower slate sphere
+  // Upper coral-crimson dome
   ctx.beginPath();
   ctx.arc(cx, cy, outerR, Math.PI, 0, false);
   ctx.closePath();
-  ctx.fillStyle = makeLinearGrad(ctx, cx - outerR, cy - outerR, cx + outerR, cy, ['#ff7e67', '#d83847']);
+  ctx.fillStyle = makeLinearGrad(ctx, cx - outerR, cy - outerR, cx + outerR, cy, ['#ff8569', '#d62f42']);
   ctx.fill();
 
+  // Lower pearl-silver dome
   ctx.beginPath();
   ctx.arc(cx, cy, outerR, 0, Math.PI, false);
   ctx.closePath();
-  ctx.fillStyle = makeLinearGrad(ctx, cx - outerR, cy, cx + outerR, cy + outerR, ['#f0f4fc', '#aebad0']);
+  ctx.fillStyle = makeLinearGrad(ctx, cx - outerR, cy, cx + outerR, cy + outerR, ['#f4f7fc', '#aebad0']);
   ctx.fill();
 
-  // Horizontal center band
-  ctx.fillStyle = '#121826';
-  ctx.fillRect(cx - outerR, cy - 5, outerR * 2, 10);
+  // Equator dark band + gold hairline trim
+  ctx.fillStyle = '#101624';
+  ctx.fillRect(cx - outerR, cy - 5.5, outerR * 2, 11);
+  ctx.fillStyle = 'rgba(245, 215, 127, 0.72)';
+  ctx.fillRect(cx - outerR + 1, cy - 5.5, outerR * 2 - 2, 1);
+  ctx.fillRect(cx - outerR + 1, cy + 4.5, outerR * 2 - 2, 1);
 
+  // Outer orb golden rim
   ctx.beginPath();
   ctx.arc(cx, cy, outerR, 0, Math.PI * 2);
-  ctx.strokeStyle = '#e8c052';
+  ctx.strokeStyle = '#ebc454';
   ctx.lineWidth = 3;
   ctx.stroke();
 
-  // Center emblem button
+  // Center bezel & circular icon medallion
   ctx.beginPath();
-  ctx.arc(cx, cy, 19, 0, Math.PI * 2);
-  ctx.fillStyle = '#121826';
+  ctx.arc(cx, cy, 34, 0, Math.PI * 2);
+  ctx.fillStyle = '#0e1526';
   ctx.fill();
+  ctx.strokeStyle = '#ecc85c';
+  ctx.lineWidth = 2.2;
+  ctx.stroke();
+
+  const innerIconR = 29;
+  if (orbIcon && (orbIcon.naturalWidth || orbIcon.width)) {
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(cx, cy, innerIconR, 0, Math.PI * 2);
+    ctx.clip();
+    const iw = orbIcon.naturalWidth || orbIcon.width;
+    const ih = orbIcon.naturalHeight || orbIcon.height;
+    const cov = Math.max((innerIconR * 2) / iw, (innerIconR * 2) / ih);
+    const dw = iw * cov;
+    const dh = ih * cov;
+    ctx.drawImage(orbIcon, cx - dw * 0.5, cy - dh * 0.5, dw, dh);
+
+    // Subtle spherical glass glint on upper half
+    const glint = ctx.createLinearGradient(cx, cy - innerIconR, cx, cy);
+    glint.addColorStop(0, 'rgba(255,255,255,0.28)');
+    glint.addColorStop(0.65, 'rgba(255,255,255,0.03)');
+    glint.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = glint;
+    ctx.beginPath();
+    ctx.ellipse(cx, cy - innerIconR * 0.42, innerIconR * 0.78, innerIconR * 0.46, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  } else {
+    ctx.beginPath();
+    ctx.arc(cx, cy, innerIconR, 0, Math.PI * 2);
+    ctx.fillStyle = makeLinearGrad(ctx, cx - 20, cy - 20, cx + 20, cy + 20, energy.orb);
+    ctx.fill();
+    drawBadgeVector(ctx, badgeId, cx, cy + 0.5, 16, '#ffffff');
+  }
+
   ctx.beginPath();
-  ctx.arc(cx, cy, 14, 0, Math.PI * 2);
-  ctx.fillStyle = makeLinearGrad(ctx, cx - 10, cy - 10, cx + 10, cy + 10, energy.orb);
-  ctx.fill();
+  ctx.arc(cx, cy, innerIconR, 0, Math.PI * 2);
   ctx.strokeStyle = '#ffe58f';
   ctx.lineWidth = 1.6;
   ctx.stroke();
 
-  drawBadgeVector(ctx, badgeId, cx, cy + 0.5, 9.2, '#ffffff');
-
   // Collector Nameplate Box
-  const boxY = 296;
-  roundPath(ctx, 32, boxY, W - 64, 92, 10);
-  ctx.fillStyle = 'rgba(10, 15, 28, 0.72)';
+  const boxY = 248;
+  roundPath(ctx, 28, boxY, W - 56, 92, 10);
+  ctx.fillStyle = 'rgba(10, 15, 28, 0.78)';
   ctx.fill();
   ctx.strokeStyle = 'rgba(232, 190, 74, 0.42)';
   ctx.lineWidth = 1;
@@ -1230,20 +1276,58 @@ export function renderCardBackToCanvas(canvas, card, scale = 2) {
   ctx.font = `800 15px ${FONT_STACK}`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillText(getCardDisplayTitle(card), W * 0.5, boxY + 26);
+  ctx.fillText(getCardDisplayTitle(card), W * 0.5, boxY + 21);
 
-  ctx.fillStyle = '#a8b7d4';
+  ctx.fillStyle = '#b9c6df';
   ctx.font = `600 10.5px ${FONT_STACK}`;
-  ctx.fillText(`${card.breedName || '中华田园猫'} · ${card.coatPattern || '特征花色'}`, W * 0.5, boxY + 50);
+  ctx.fillText(`${card.breedName || '萌宠伙伴'} · ${card.coatPattern || '特色花色'}`, W * 0.5, boxY + 43);
 
   ctx.fillStyle = '#e7be56';
   ctx.font = `600 9.5px ${MONO_STACK}`;
-  ctx.fillText(`${card.serialNumber || '001/165 ★'} · ${card.locationName || 'CatchCat 示范馆'}`, W * 0.5, boxY + 72);
+  ctx.fillText(`${card.serialNumber || '001/165 ★'} · 性格 ${(card.personalityTag || card.abilityName || '元气粘人').slice(0, 6)}`, W * 0.5, boxY + 63);
 
-  // Bottom tag
-  ctx.fillStyle = 'rgba(232, 190, 74, 0.72)';
-  ctx.font = `700 8.5px ${MONO_STACK}`;
-  ctx.fillText('AUTHENTICATED PET TRADING CARD', W * 0.5, H - 30);
+  ctx.fillStyle = 'rgba(185, 198, 223, 0.78)';
+  ctx.font = `500 9px ${FONT_STACK}`;
+  ctx.fillText(`爱好：${(card.hobbyTag || card.attackName || '晒太阳贴贴').slice(0, 12)} · ${card.locationName || 'CatchCat 示范馆'}`, W * 0.5, boxY + 80);
+
+  // Bottom Authentication + Scannable Web QR Badge
+  const showQR = card.showBackQRCode !== false;
+  if (showQR) {
+    const qSize = 60;
+    const qx = W - 28 - qSize;
+    const qy = 357;
+
+    roundPath(ctx, qx, qy, qSize, qSize, 8);
+    ctx.fillStyle = '#faf7ee';
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(232, 190, 74, 0.85)';
+    ctx.lineWidth = 1.2;
+    ctx.stroke();
+
+    const prevSmooth = ctx.imageSmoothingEnabled;
+    ctx.imageSmoothingEnabled = false;
+    drawQRToCanvas(ctx, 'https://catchcat-studio.netlify.app', qx + 4, qy + 4, qSize - 8, '#0b1221', '#faf7ee');
+    ctx.imageSmoothingEnabled = prevSmooth;
+
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#e7be56';
+    ctx.font = `800 9.5px ${FONT_STACK}`;
+    ctx.fillText('抓喵大作战 · 全息萌宠闪卡', 30, 371);
+
+    ctx.fillStyle = '#f2f5fc';
+    ctx.font = `700 10.5px ${FONT_STACK}`;
+    ctx.fillText('扫码直达 Web 制同款闪卡', 30, 390);
+
+    ctx.fillStyle = 'rgba(185, 198, 223, 0.82)';
+    ctx.font = `600 8px ${MONO_STACK}`;
+    ctx.fillText('catchcat-studio.netlify.app', 30, 408);
+  } else {
+    ctx.textAlign = 'center';
+    ctx.fillStyle = 'rgba(232, 190, 74, 0.75)';
+    ctx.font = `700 8.5px ${MONO_STACK}`;
+    ctx.fillText('AUTHENTICATED PET TRADING CARD · CATCHCAT', W * 0.5, H - 34);
+  }
 
   ctx.restore();
   ctx.restore();

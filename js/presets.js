@@ -75,6 +75,39 @@ export function resolveAdaptiveFX(card) {
   return { zone: 'centerApex', title: '黄金居中星阵', hint: '标准黄金比例 · 全卡立体光学折射已启用' };
 }
 
+export const PERSONALITY_CHIPS = [
+  '干饭粘人精',
+  '高冷傲娇派',
+  '精力永动机',
+  '社牛小甜饼',
+  '安静学霸汪',
+  '温柔呼噜机'
+];
+
+export const HOBBY_CHIPS = [
+  '晒太阳踩奶',
+  '追逗猫棒',
+  '极速叼飞盘',
+  '钻纸箱观察',
+  '翻肚皮撒娇',
+  '守门等主人'
+];
+
+export const BREED_QUICK_PICKS = [
+  { label: '边境牧羊犬', species: 'dog', coat: '黑白玄冠', energy: 'swift', hobby: '极速叼飞盘', personality: '眼神控场大师' },
+  { label: '威尔士柯基犬', species: 'dog', coat: '金鞍伏地', energy: 'food', hobby: '蜜桃电臀跑', personality: '短腿小太阳' },
+  { label: '金毛寻回犬', species: 'dog', coat: '流金碎玉', energy: 'food', hobby: '叼飞盘贴贴', personality: '暖心大暖男' },
+  { label: '日本柴犬', species: 'dog', coat: '赤柴红云', energy: 'food', hobby: '傲娇歪头杀', personality: '表情包大师' },
+  { label: '哈士奇(雪橇犬)', species: 'dog', coat: '黑白三把火', energy: 'swift', hobby: '雪地撒欢跑', personality: '脑洞永动机' },
+  { label: '萨摩耶犬', species: 'dog', coat: '雪域白仙', energy: 'charm', hobby: '微笑大抱抱', personality: '治愈微笑团' },
+  { label: '中华橘猫', species: 'cat', coat: '金被银床', energy: 'food', hobby: '翻肚皮晒太阳', personality: '干饭粘人精' },
+  { label: '中华狸花猫', species: 'cat', coat: '铁尺鱼骨', energy: 'swift', hobby: '追逗猫棒飞跃', personality: '警觉酷行者' },
+  { label: '奶牛猫', species: 'cat', coat: '乌云盖雪', energy: 'brawl', hobby: '客厅跑酷巡游', personality: '脑洞永动机' },
+  { label: '布偶猫', species: 'cat', coat: '海豹双色开脸', energy: 'charm', hobby: '贴腿软呼噜', personality: '仙气柔骨团' },
+  { label: '英短蓝猫', species: 'cat', coat: '雾霾丝绒蓝', energy: 'normal', hobby: '揣手晒午阳', personality: '敦厚绅士派' },
+  { label: '三花猫', species: 'cat', coat: '三花锦绣', energy: 'charm', hobby: '暖被窝打盹', personality: '福气小甜饼' }
+];
+
 export const SAMPLE_CARDS = [
   {
     id: 'sample-orange-ex',
@@ -87,11 +120,13 @@ export const SAMPLE_CARDS = [
     energyType: 'food',
     breedName: '中华橘猫',
     coatPattern: '金被银床',
-    abilityName: '大橘为重',
-    abilityDesc: '受到的饥饿与普通撞击伤害固定减少 30 点。',
-    attackName: '吨位泰山压顶',
+    personalityTag: '干饭粘人精',
+    hobbyTag: '晒太阳踩奶',
+    abilityName: '干饭粘人精',
+    abilityDesc: '只要听见开罐头声就立刻闪现贴腿，最爱把肚皮摊在太阳下。',
+    attackName: '圆肚皮晒太阳',
     attackDamage: 180,
-    flavorText: '常年盘踞地下车库 5 号柱旁，拥有把整只猫摊成大饼的神技。',
+    flavorText: '常年盘踞地下车库 5 号柱旁，拥有把整只猫摊成暖呼呼大饼的绝技。',
     locationName: 'CatchCat 示范馆',
     cutoutSrc: 'assets/cat-orange.png',
     borderStyle: 'blackObsidian',
@@ -103,6 +138,7 @@ export const SAMPLE_CARDS = [
     subjectOffsetY: 0,
     subjectScale: 1.0,
     tnrClipped: true,
+    showBackQRCode: true,
     createdAt: 1764100000000
   },
   {
@@ -116,9 +152,11 @@ export const SAMPLE_CARDS = [
     energyType: 'swift',
     breedName: '中华狸花猫',
     coatPattern: '铁尺鱼骨',
-    abilityName: '暗影巡逻',
-    abilityDesc: '免疫任何负面状态，敏捷回避率翻倍。',
-    attackName: '草丛飞扑斩',
+    personalityTag: '警觉酷行者',
+    hobbyTag: '追逗猫棒',
+    abilityName: '警觉酷行者',
+    abilityDesc: '独立聪明又极有分寸感，习惯站在猫爬架最高层暗中观察。',
+    attackName: '草丛飞扑抓球',
     attackDamage: 160,
     flavorText: '眼神锐利、花纹清晰，被国际爱猫界认证的东方自然猫王。',
     locationName: 'CatchCat 示范馆',
@@ -132,6 +170,7 @@ export const SAMPLE_CARDS = [
     subjectOffsetY: 0,
     subjectScale: 1.0,
     tnrClipped: true,
+    showBackQRCode: true,
     createdAt: 1764090000000
   },
   {
@@ -145,11 +184,13 @@ export const SAMPLE_CARDS = [
     energyType: 'brawl',
     breedName: '奶牛猫',
     coatPattern: '乌云盖雪',
-    abilityName: '神经二哈',
-    abilityDesc: '夜里三点自动满血进入客厅跑酷狂暴模式。',
+    personalityTag: '脑洞永动机',
+    hobbyTag: '客厅夜间跑酷',
+    abilityName: '脑洞永动机',
+    abilityDesc: '精力充沛满脑奇思妙想，每天凌晨三点准时巡游全屋。',
     attackName: '垂直墙头跑酷',
     attackDamage: 150,
-    flavorText: '背黑如墨、四蹄踏雪，专注在防盗窗表演无重力倒立。',
+    flavorText: '背黑如墨、四蹄踏雪，专注在窗台与纸箱间表演搞笑特技。',
     locationName: 'CatchCat 示范馆',
     cutoutSrc: 'assets/cat-cow.png',
     borderStyle: 'prismaticRainbow',
@@ -161,6 +202,7 @@ export const SAMPLE_CARDS = [
     subjectOffsetY: 0,
     subjectScale: 1.0,
     tnrClipped: false,
+    showBackQRCode: true,
     createdAt: 1764080000000
   },
   {
@@ -174,11 +216,13 @@ export const SAMPLE_CARDS = [
     energyType: 'dark',
     breedName: '苏格兰折耳',
     coatPattern: '烟灰琥珀',
-    abilityName: '冷酷墨镜',
-    abilityDesc: '无论场上有多少罐头，始终保持高冷不眨眼。',
-    attackName: '琥珀射线凝视',
+    personalityTag: '高冷傲娇派',
+    hobbyTag: '揣手晒午阳',
+    abilityName: '高冷傲娇派',
+    abilityDesc: '无论旁边有多少罐头晃过，始终墨镜一戴保持贵族淡定。',
+    attackName: '琥珀墨镜歪头',
     attackDamage: 210,
-    flavorText: '戴上复古圆框琥珀墨镜之后，连胡须都带着贵族气息。',
+    flavorText: '戴上复古圆框琥珀墨镜之后，连胡须都透着慵懒贵族气场。',
     locationName: 'CatchCat 示范馆',
     cutoutSrc: 'assets/cat-shades.png',
     borderStyle: 'classicGold',
@@ -190,6 +234,7 @@ export const SAMPLE_CARDS = [
     subjectOffsetY: 0,
     subjectScale: 1.0,
     tnrClipped: false,
+    showBackQRCode: true,
     createdAt: 1764070000000
   }
 ];

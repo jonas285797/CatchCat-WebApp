@@ -425,8 +425,9 @@ body.tab-studio .topbar {
   position: absolute;
   inset: 0;
   backface-visibility: hidden;
-  border-radius: 18px;
+  border-radius: 6.135% / 4.386%;
   overflow: hidden;
+  background: transparent;
   box-shadow: var(--shadow-card);
 }
 
@@ -459,7 +460,7 @@ body.tab-studio .topbar {
   position: absolute;
   inset: 0;
   border: 2px dashed var(--citrine);
-  border-radius: 18px;
+  border-radius: 6.135% / 4.386%;
   pointer-events: none;
   display: flex;
   align-items: flex-end;
@@ -1263,18 +1264,19 @@ input[type="range"] {
 /* ── 手机底部 TabBar ── */
 .mobile-tabbar {
   position: fixed;
-  left: 12px;
-  right: 12px;
+  left: 14px;
+  right: 14px;
   bottom: calc(env(safe-area-inset-bottom) + 10px);
   z-index: 40;
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   padding: 5px;
   border-radius: 999px;
-  background: rgba(24, 28, 35, 0.92);
-  backdrop-filter: blur(20px);
-  border: 1px solid var(--border-strong);
-  box-shadow: 0 18px 40px -12px rgba(0, 0, 0, 0.65);
+  background: rgba(15, 22, 38, 0.90);
+  backdrop-filter: blur(22px) saturate(1.3);
+  -webkit-backdrop-filter: blur(22px) saturate(1.3);
+  border: 1px solid rgba(118, 146, 198, 0.24);
+  box-shadow: 0 18px 42px -10px rgba(0, 0, 0, 0.72), inset 0 1px 0 rgba(255, 255, 255, 0.08);
 }
 
 .m-tab {
@@ -1287,12 +1289,16 @@ input[type="range"] {
   gap: 2px;
   font-size: 10.5px;
   font-weight: 700;
-  color: var(--ink-3);
+  color: rgba(214, 224, 242, 0.62);
+  border: 1px solid transparent;
+  transition: color 0.18s ease, background 0.18s ease, border-color 0.18s ease;
 }
 
 .m-tab.is-active {
-  background: var(--accent-soft);
-  color: var(--accent);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.13), rgba(255, 255, 255, 0.05));
+  border-color: rgba(255, 192, 64, 0.26);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14);
+  color: #ffb81a;
 }
 
 /* ── 弹窗：抠图与 AI 设置 ── */
@@ -1419,6 +1425,50 @@ input[type="range"] {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 8px;
+}
+
+.cutout-species-bar {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+}
+
+.cutout-species-bar button,
+.chip-pill {
+  padding: 6px 9px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--ink-2);
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+  transition: border-color 0.16s ease, background 0.16s ease, color 0.16s ease;
+}
+
+.cutout-species-bar button.is-active,
+.chip-pill.is-active {
+  border-color: rgba(255, 184, 26, 0.55);
+  background: rgba(255, 184, 26, 0.14);
+  color: #ffb81a;
+}
+
+.chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.chip-row--scroll {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  padding-bottom: 2px;
+  scrollbar-width: none;
+}
+
+.chip-row--scroll::-webkit-scrollbar {
+  display: none;
 }
 
 .ai-checkbox {
