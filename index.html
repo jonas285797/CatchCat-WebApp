@@ -20,7 +20,7 @@
     }
   }
   </script>
-  <link rel="stylesheet" href="styles.css?v=20261128b">
+  <link rel="stylesheet" href="styles.css?v=20261128c">
 </head>
 <body>
   <div class="app-shell">
@@ -238,6 +238,7 @@
                 </div>
               </div>
             </div>
+            <p class="ai-explicit-badge">✨ 部分品种识别、技能文案与抠图由 AI 辅助生成，仅供娱乐参考</p>
 
             <!-- 正反面独立切换条 + 横版卡背一键横置 -->
             <div class="studio-face-bar" id="studio-face-bar">
@@ -538,20 +539,13 @@
         </div>
       </section>
 
-      <!-- ═══════════════════════ VIEW 3: 萌宠图鉴（对齐 iOS CatDexView 仪表盘 + 本地/云端并集同步） ═══════════════════════ -->
+      <!-- ═══════════════════════ VIEW 3: 萌宠图鉴（1:1 对齐 iOS CatDexView） ═══════════════════════ -->
       <section class="view" id="view-dex" aria-label="萌宠图鉴">
         <div class="dex-wrap">
           <div class="dex-header">
-            <div>
-              <h2>萌宠图鉴</h2>
-              <p id="dex-stats-line">63×88mm 实体规格 · 与 iOS 端图鉴并集对齐</p>
-            </div>
-            <div class="dex-backup-actions">
-              <button type="button" class="cloud-auth-pill" id="btn-dex-cloud-sync">☁ 云同步</button>
-              <button type="button" class="btn-chip" id="btn-backup-export">备份</button>
-              <label class="btn-chip" for="backup-file-input">恢复</label>
-              <input id="backup-file-input" type="file" accept="application/json" hidden>
-            </div>
+            <div class="dex-header-spacer" aria-hidden="true"></div>
+            <h2>萌宠图鉴</h2>
+            <button type="button" class="dex-top-auth-pill" id="btn-dex-cloud-sync">云端登录</button>
           </div>
 
           <!-- 收集仪表盘（1:1 复刻 iOS vibrantCollectionDashboard · Liquid Glass 零阴影） -->
@@ -578,6 +572,9 @@
                 <strong>CatDex 图鉴收集</strong>
                 <span class="dex-species-pill dex-species-pill--cat" id="dex-cat-prog">🐱 0/21</span>
                 <span class="dex-species-pill dex-species-pill--dog" id="dex-dog-prog" hidden>🐶 0/31</span>
+                <span class="dex-species-pill dex-species-pill--parrot" id="dex-parrot-prog" hidden>🦜 0/4</span>
+                <span class="dex-species-pill dex-species-pill--guinea" id="dex-guinea-prog" hidden>🐹 0/4</span>
+                <span class="dex-species-pill dex-species-pill--other" id="dex-other-prog" hidden>🐾 0/4</span>
               </div>
               <div class="dex-rarity-stats">
                 <span class="dex-stat-pill">👑 <strong id="dex-stat-crown">0</strong></span>
@@ -596,7 +593,7 @@
             </div>
           </div>
 
-          <!-- 模式切换条：我的闪卡 vs 全套 52 种图鉴名录 -->
+          <!-- 模式切换条：我的闪卡 vs 全套 64 种图鉴名录 -->
           <div class="dex-mode-bar" id="dex-mode-bar">
             <button type="button" class="dex-mode-btn is-active" data-dex-mode="cards">
               <span>🗂</span>
@@ -604,7 +601,7 @@
             </button>
             <button type="button" class="dex-mode-btn" data-dex-mode="catalog">
               <span>⊞</span>
-              <span>全套图鉴名录 · 共 52 种</span>
+              <span id="dex-mode-catalog-label">全套图鉴名录 · 共 64 种</span>
             </button>
           </div>
 
@@ -630,10 +627,27 @@
             <div class="dex-subfilter-bar" id="dex-breed-subfilter-bar" hidden></div>
           </div>
 
-          <!-- 52 品种全图鉴墙（切到「全套图鉴名录」显示） -->
+          <!-- 64 品种全图鉴墙（切到「全套图鉴名录」显示，1:1 对齐 iOS BreedCatalogWallView） -->
           <div class="dex-catalog-wall" id="dex-catalog-wall" hidden>
-            <div class="dex-subfilter-bar" id="dex-catalog-scope-bar"></div>
-            <div class="dex-subfilter-bar" id="dex-catalog-energy-bar"></div>
+            <div class="dex-overview-card" id="dex-catalog-overview">
+              <div class="dex-overview-head">
+                <div class="dex-overview-title">
+                  <span class="dex-overview-grid-icon" aria-hidden="true">⊞</span>
+                  <strong id="dex-overview-total-title">全套 64 种萌宠图鉴名录</strong>
+                </div>
+                <span class="dex-overview-badge" id="dex-overview-unlocked-badge">已点亮 0/64</span>
+              </div>
+              <div class="dex-overview-rarities">
+                <span class="dex-rarity-chip is-common">◆ 普通</span>
+                <span class="dex-rarity-chip is-uncommon">◆◆ 罕见</span>
+                <span class="dex-rarity-chip is-rare">◆◆◆ 稀有</span>
+                <span class="dex-rarity-chip is-epic">★★★ 史诗 <em>ex</em></span>
+                <span class="dex-rarity-chip is-crown">👑 皇冠传说 <em>ex</em></span>
+              </div>
+              <p class="dex-overview-desc" id="dex-overview-desc">覆盖猫猫(21)、狗狗(31)、鹦鹉(4)、豚鼠(4)与其他萌宠(4)，每个品种均具备专属特性与招式档案。</p>
+            </div>
+            <div class="dex-subfilter-bar dex-catalog-scope-bar" id="dex-catalog-scope-bar"></div>
+            <div class="dex-subfilter-bar dex-catalog-energy-bar" id="dex-catalog-energy-bar"></div>
             <div class="dex-catalog-grid" id="dex-catalog-grid"></div>
           </div>
 
@@ -980,6 +994,10 @@
           <label for="auth-input-displayname">训练家昵称（选填）</label>
           <input type="text" id="auth-input-displayname" maxlength="24" placeholder="如：星际铲屎官">
         </div>
+        <label class="ai-checkbox" style="margin-top:8px; align-items:flex-start;">
+          <input type="checkbox" id="chk-auth-agree">
+          <span style="font-size:11.5px; line-height:1.45;">我已阅读并同意 <button type="button" class="legal-inline-link" data-legal-tab="privacy">《隐私政策》</button><button type="button" class="legal-inline-link" data-legal-tab="terms">《用户协议》</button><button type="button" class="legal-inline-link" data-legal-tab="collection">《收集清单》</button></span>
+        </label>
         <p id="auth-error-msg" style="color:#ff7e8b; font-size:12px; margin:6px 0 0;" hidden></p>
         <div class="modal-foot" style="padding-top:12px; margin-top:8px;">
           <button type="button" class="btn-jade" id="btn-auth-submit" style="width:100%;">登录并同步云端图鉴</button>
@@ -991,10 +1009,67 @@
           <strong id="auth-profile-name" style="display:block; font-size:15px; color:#ffffff;">—</strong>
           <span id="auth-profile-meta" style="display:block; font-size:12px; color:rgba(214,224,242,0.75); margin-top:4px;">已连接云端图鉴库</span>
         </div>
-        <div class="modal-foot">
+        <div class="modal-foot" style="flex-wrap:wrap; gap:8px;">
           <button type="button" class="btn-outline" id="btn-auth-logout">退出登录</button>
           <button type="button" class="btn-jade" id="btn-auth-sync-now">立即双向同步</button>
         </div>
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-top:12px; padding-top:10px; border-top:1px solid rgba(255,255,255,0.1);">
+          <button type="button" class="legal-inline-link" id="btn-auth-open-legal" data-legal-tab="privacy">合规与隐私公示中心</button>
+          <button type="button" class="legal-danger-link" id="btn-auth-delete-account">注销账号并清除云端数据</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════ MODAL 6: 首次访问隐私合规弹窗（严格不默认勾选） ═══════════════════════ -->
+  <div class="modal-backdrop" id="modal-privacy-consent" hidden>
+    <div class="modal-sheet modal-sheet--sm" role="dialog" aria-modal="true" aria-labelledby="privacy-consent-title">
+      <div class="modal-head">
+        <div>
+          <h3 id="privacy-consent-title">隐私保护与合规说明</h3>
+          <p>欢迎使用「抓宠大作战」Web 制卡台</p>
+        </div>
+      </div>
+      <div class="legal-consent-box">
+        <p>为保障您的个人信息与宠物安全，请在使用前了解：</p>
+        <ul>
+          <li>相机与本地图片权限仅在您主动抓拍或传图制卡时调用，拒绝不影响浏览图鉴。</li>
+          <li>街区定位默认关闭；仅在您授权后按约 1200 米街道级脱敏展示，绝不暴露门牌号。</li>
+          <li>部分品种识别、技能文案与抠图由 AI 辅助生成，仅供娱乐参考。</li>
+          <li>您可随时在「云端账号面板」查看信息清单或一键注销账号并清除云端数据。</li>
+        </ul>
+      </div>
+      <div class="legal-doc-links">
+        <button type="button" class="legal-inline-link" data-legal-tab="privacy">《隐私政策》</button>
+        <button type="button" class="legal-inline-link" data-legal-tab="terms">《用户协议》</button>
+        <button type="button" class="legal-inline-link" data-legal-tab="collection">《收集清单》</button>
+        <button type="button" class="legal-inline-link" data-legal-tab="sdkAndAi">《第三方与AI标识》</button>
+      </div>
+      <label class="ai-checkbox" style="margin:6px 0 10px; align-items:flex-start;">
+        <input type="checkbox" id="chk-privacy-consent">
+        <span style="font-size:12px; line-height:1.45;">我已阅读并同意以上全部合规条款与《AI 生成内容标识声明》</span>
+      </label>
+      <div class="modal-foot">
+        <button type="button" class="btn-outline" id="btn-privacy-decline">暂不同意（仅本地浏览）</button>
+        <button type="button" class="btn-jade" id="btn-privacy-accept">同意并继续</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════ MODAL 7: 合规与隐私公示中心 ═══════════════════════ -->
+  <div class="modal-backdrop" id="modal-legal" hidden>
+    <div class="modal-sheet" role="dialog" aria-modal="true" aria-labelledby="legal-modal-title">
+      <div class="modal-head">
+        <div>
+          <h3 id="legal-modal-title">合规与隐私公示中心</h3>
+          <p>依据《个人信息保护法》与《人工智能生成合成内容标识办法》公示</p>
+        </div>
+        <button type="button" class="btn-icon-close" id="btn-close-legal" aria-label="关闭">✕</button>
+      </div>
+      <div class="legal-tabs" id="legal-tabs"></div>
+      <div class="legal-doc-body" id="legal-doc-body"></div>
+      <div class="modal-foot">
+        <button type="button" class="btn-jade" id="btn-legal-done" style="width:100%;">我已知晓</button>
       </div>
     </div>
   </div>
@@ -1002,7 +1077,7 @@
   <!-- 全局轻提示 -->
   <div class="toast" id="app-toast" role="status" aria-live="polite" hidden></div>
 
-  <script type="module" src="js/app.js?v=20261128b"></script>
+  <script type="module" src="js/app.js?v=20261128c"></script>
 </body>
 </html>
 

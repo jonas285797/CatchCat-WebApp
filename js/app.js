@@ -33,6 +33,7 @@ import {
 } from './cardRenderer.js?v=20261128b';
 import { WebCutoutEngine, preloadNeuralMatting } from './cutout.js?v=20261128b';
 import { getAISettings, saveAISettings, analyzePetSmart, analyzeCutoutMoodMetrics } from './ai.js?v=20261128b';
+import { LEGAL_TABS, LEGAL_DOCUMENTS } from './legal.js?v=20261128c';
 import { loadAllCards, upsertCard, removeCard, getTrainerLevelInfo, grantTrainerXP } from './storage.js?v=20261128b';
 import { Card3DShowcase } from './showcase3d.js?v=20261128b';
 import {
@@ -247,6 +248,9 @@ const dom = {
   dexDashCount: $('#dex-dash-count'),
   dexCatProg: $('#dex-cat-prog'),
   dexDogProg: $('#dex-dog-prog'),
+  dexParrotProg: $('#dex-parrot-prog'),
+  dexGuineaProg: $('#dex-guinea-prog'),
+  dexOtherProg: $('#dex-other-prog'),
   dexStatCrown: $('#dex-stat-crown'),
   dexStatEpic: $('#dex-stat-epic'),
   dexStatRare: $('#dex-stat-rare'),
@@ -256,6 +260,10 @@ const dom = {
   dexCompletionPct: $('#dex-completion-pct'),
   dexModeBar: $('#dex-mode-bar'),
   dexModeCardsLabel: $('#dex-mode-cards-label'),
+  dexModeCatalogLabel: $('#dex-mode-catalog-label'),
+  dexOverviewTotalTitle: $('#dex-overview-total-title'),
+  dexOverviewUnlockedBadge: $('#dex-overview-unlocked-badge'),
+  dexOverviewDesc: $('#dex-overview-desc'),
   dexCardsToolbar: $('#dex-cards-toolbar'),
   dexSearch: $('#dex-search'),
   btnDexFav: $('#btn-dex-fav'),
@@ -1033,6 +1041,7 @@ function captureFromVideoOrFallback() {
 async function switchTab(tabName) {
   state.activeTab = tabName;
   document.body.classList.toggle('tab-studio', tabName === 'studio');
+  document.body.classList.toggle('tab-dex', tabName === 'dex');
 
   dom.navPills.forEach((btn) => btn.classList.toggle('is-active', btn.dataset.tab === tabName));
   dom.mobileTabs.forEach((btn) => btn.classList.toggle('is-active', btn.dataset.tab === tabName));
@@ -1106,8 +1115,17 @@ async function syncShowcaseCard() {
 function computeDexStats(cards = []) {
   const catBreeds = PET_CATALOG_BREEDS.filter((b) => b.species === 'cat');
   const dogBreeds = PET_CATALOG_BREEDS.filter((b) => b.species === 'dog');
+  const parrotBreeds = PET_CATALOG_BREEDS.filter((b) => b.species === 'parrot');
+  const guineaBreeds = PET_CATALOG_BREEDS.filter((b) => b.species === 'guineaPig');
+  const otherBreeds = PET_CATALOG_BREEDS.filter((b) => b.species === 'other');
+
   const collectedCat = new Set();
   const collectedDog = new Set();
+  const collectedParrot = new Set();
+  const collectedGuinea = new Set();
+  const collectedOther = new Set();
+  const collectedAll = new Set();
+
   let crown = 0;
   let epic = 0;
   let rare = 0;
@@ -1120,13 +1138,17 @@ function computeDexStats(cards = []) {
 
     const match = matchCatalogBreed(c);
     if (match) {
+      collectedAll.add(match.name);
       if (match.species === 'dog') collectedDog.add(match.name);
+      else if (match.species === 'parrot') collectedParrot.add(match.name);
+      else if (match.species === 'guineaPig') collectedGuinea.add(match.name);
+      else if (match.species === 'other') collectedOther.add(match.name);
       else collectedCat.add(match.name);
     }
   }
 
   const totalCatalog = PET_CATALOG_BREEDS.length;
-  const unlockedCount = collectedCat.size + collectedDog.size;
+  const unlockedCount = collectedAll.size;
   const pct = totalCatalog > 0 ? Math.min(100, Math.round((unlockedCount / totalCatalog) * 100)) : 0;
 
   return {
@@ -1134,6 +1156,14 @@ function computeDexStats(cards = []) {
     catTotal: catBreeds.length,
     dogCount: collectedDog.size,
     dogTotal: dogBreeds.length,
+    parrotCount: collectedParrot.size,
+    parrotTotal: parrotBreeds.length,
+    guineaCount: collectedGuinea.size,
+    guineaTotal: guineaBreeds.length,
+    otherCount: collectedOther.size,
+    otherTotal: otherBreeds.length,
+    unlockedCount,
+    totalCatalog,
     crown,
     epic,
     rare,
@@ -1154,14 +1184,32 @@ function updateDexDashboard() {
   if (dom.dexDashCount) dom.dexDashCount.textContent = String(state.cards.length);
   if (dom.dexCatProg) dom.dexCatProg.textContent = `🐱 ${stats.catCount}/${stats.catTotal}`;
   if (dom.dexDogProg) {
-    dom.dexDogProg.hidden = false;
+    dom.dexDogProg.hidden = stats.dogCount === 0 && stats.catCount > 0 ? false : false;
     dom.dexDogProg.textContent = `🐶 ${stats.dogCount}/${stats.dogTotal}`;
+  }
+  if (dom.dexParrotProg) {
+    dom.dexParrotProg.hidden = stats.parrotCount === 0;
+    dom.dexParrotProg.textContent = `🦜 ${stats.parrotCount}/${stats.parrotTotal}`;
+  }
+  if (dom.dexGuineaProg) {
+    dom.dexGuineaProg.hidden = stats.guineaCount === 0;
+    dom.dexGuineaProg.textContent = `🐹 ${stats.guineaCount}/${stats.guineaTotal}`;
+  }
+  if (dom.dexOtherProg) {
+    dom.dexOtherProg.hidden = stats.otherCount === 0;
+    dom.dexOtherProg.textContent = `🐾 ${stats.otherCount}/${stats.otherTotal}`;
   }
   if (dom.dexStatCrown) dom.dexStatCrown.textContent = String(stats.crown);
   if (dom.dexStatEpic) dom.dexStatEpic.textContent = String(stats.epic);
   if (dom.dexStatRare) dom.dexStatRare.textContent = String(stats.rare);
   if (dom.dexCompletionPct) dom.dexCompletionPct.textContent = `${stats.pct}%`;
   if (dom.dexModeCardsLabel) dom.dexModeCardsLabel.textContent = `我的闪卡 (${state.cards.length})`;
+  if (dom.dexModeCatalogLabel) dom.dexModeCatalogLabel.textContent = `全套图鉴名录 · 共 ${stats.totalCatalog} 种`;
+  if (dom.dexOverviewTotalTitle) dom.dexOverviewTotalTitle.textContent = `全套 ${stats.totalCatalog} 种萌宠图鉴名录`;
+  if (dom.dexOverviewUnlockedBadge) dom.dexOverviewUnlockedBadge.textContent = `已点亮 ${stats.unlockedCount}/${stats.totalCatalog}`;
+  if (dom.dexOverviewDesc) {
+    dom.dexOverviewDesc.textContent = `覆盖猫猫(${stats.catTotal})、狗狗(${stats.dogTotal})、鹦鹉(${stats.parrotTotal})、豚鼠(${stats.guineaTotal})与其他萌宠(${stats.otherTotal})，每个品种均具备专属特性与招式档案。`;
+  }
 
   if (dom.dexCloudDot) dom.dexCloudDot.classList.toggle('is-online', signedIn);
   if (dom.dexCloudStatusLine) {
@@ -1309,15 +1357,38 @@ function renderDexSubfilters() {
   }
 }
 
-function renderCatalogFilters() {
+function speciesSilhouetteSvg(species, color) {
+  const common = `width="26" height="26" viewBox="0 0 24 24" fill="${color}" aria-hidden="true"`;
+  if (species === 'cat') {
+    return `<svg ${common}><path d="M5 4l3 3.2A6.5 6.5 0 0 1 12 6c1.5 0 2.9.5 4 1.2L19 4v5.5c.6 1 1 2.2 1 3.5 0 4.1-3.6 7-8 7s-8-2.9-8-7c0-1.3.4-2.5 1-3.5V4z"/></svg>`;
+  }
+  if (species === 'dog') {
+    return `<svg ${common}><path d="M4.5 6.5C3.1 7.6 2.5 9.8 3.5 12c.5 1 1.6 1 2 .2l.6-1.2v2.3c0 3.7 2.6 6.2 5.9 6.2s5.9-2.5 5.9-6.2V11l.6 1.2c.4.8 1.5.8 2-.2 1-2.2.4-4.4-1-5.5l-1.8 1.3A6.8 6.8 0 0 0 12 6c-2.1 0-4 .7-5.7 1.8L4.5 6.5z"/></svg>`;
+  }
+  if (species === 'parrot') {
+    return `<svg ${common}><path d="M16 3c-3 0-5.5 2-6.2 4.8L6 16.5l3 1.5 1.8-2.5c2.7-.4 4.8-2.4 5.2-5.1L19 9l-2-1.2C16.8 5.2 17.5 3.6 16 3z"/></svg>`;
+  }
+  if (species === 'guineaPig') {
+    return `<svg ${common}><path d="M5 13c0-3.5 3.1-6 7-6s7 2.5 7 6c0 2.8-2.3 5-5.5 5h-3C7.3 18 5 15.8 5 13zm2.5-5.5C6.5 6.5 5 7 5 8.5c0 .9.7 1.5 1.5 1.5h1.8c-.2-.9-.5-1.7-.8-2.5zm9 0c-.3.8-.6 1.6-.8 2.5h1.8c.8 0 1.5-.6 1.5-1.5 0-1.5-1.5-2-2.5-1z"/></svg>`;
+  }
+  return `<svg ${common}><circle cx="7" cy="8.5" r="2"/><circle cx="12" cy="6.5" r="2"/><circle cx="17" cy="8.5" r="2"/><path d="M12 11c-3.2 0-5.5 2.4-5.5 5 0 1.7 1.4 2.5 3 2.5.9 0 1.7-.3 2.5-.3s1.6.3 2.5.3c1.6 0 3-.8 3-2.5 0-2.6-2.3-5-5.5-5z"/></svg>`;
+}
+
+function renderCatalogFilters(unlockedSet = new Set()) {
+  const unlockedCount = unlockedSet.size;
+  const lockedCount = Math.max(0, PET_CATALOG_BREEDS.length - unlockedCount);
+
   if (dom.dexCatalogScopeBar) {
     dom.dexCatalogScopeBar.innerHTML = '';
     const scopes = [
-      { id: 'all', label: `全部 (${PET_CATALOG_BREEDS.length})` },
+      { id: 'all', label: `全部 ${PET_CATALOG_BREEDS.length}` },
       ...PET_SPECIES_PRESETS.map((sp) => {
         const n = PET_CATALOG_BREEDS.filter((b) => b.species === sp.id).length;
-        return { id: sp.id, label: `${sp.emoji} ${sp.label} (${n})` };
-      })
+        const shortLabel = sp.id === 'other' ? '其他' : sp.label;
+        return { id: sp.id, label: `${sp.emoji} ${shortLabel} ${n}` };
+      }),
+      { id: 'unlocked', label: `已解锁 ${unlockedCount}` },
+      { id: 'locked', label: `待发现 ${lockedCount}` }
     ];
     for (const s of scopes) {
       const btn = document.createElement('button');
@@ -1326,7 +1397,6 @@ function renderCatalogFilters() {
       btn.textContent = s.label;
       btn.addEventListener('click', () => {
         state.catalogScope = s.id;
-        renderCatalogFilters();
         renderBreedCatalogWall();
       });
       dom.dexCatalogScopeBar.appendChild(btn);
@@ -1336,8 +1406,8 @@ function renderCatalogFilters() {
   if (dom.dexCatalogEnergyBar) {
     dom.dexCatalogEnergyBar.innerHTML = '';
     const energies = [
-      { id: 'all', label: '全部属性' },
-      ...ENERGY_TYPES.map((e) => ({ id: e.id, label: `${e.emoji} ${e.label}` }))
+      { id: 'all', label: '全属性' },
+      ...ENERGY_TYPES.map((e) => ({ id: e.id, label: `${e.emoji} ${e.label}系` }))
     ];
     for (const e of energies) {
       const btn = document.createElement('button');
@@ -1346,7 +1416,6 @@ function renderCatalogFilters() {
       btn.textContent = e.label;
       btn.addEventListener('click', () => {
         state.catalogEnergy = e.id;
-        renderCatalogFilters();
         renderBreedCatalogWall();
       });
       dom.dexCatalogEnergyBar.appendChild(btn);
@@ -1356,7 +1425,6 @@ function renderCatalogFilters() {
 
 function renderBreedCatalogWall() {
   if (!dom.dexCatalogGrid) return;
-  renderCatalogFilters();
 
   const byBreed = new Map();
   for (const c of state.cards) {
@@ -1366,8 +1434,17 @@ function renderBreedCatalogWall() {
     byBreed.get(match.name).push(c);
   }
 
+  const unlockedSet = new Set(byBreed.keys());
+  renderCatalogFilters(unlockedSet);
+  if (dom.dexOverviewUnlockedBadge) {
+    dom.dexOverviewUnlockedBadge.textContent = `已点亮 ${unlockedSet.size}/${PET_CATALOG_BREEDS.length}`;
+  }
+
   const breeds = PET_CATALOG_BREEDS.filter((b) => {
-    if (state.catalogScope !== 'all' && b.species !== state.catalogScope) return false;
+    const isUnlocked = unlockedSet.has(b.name);
+    if (state.catalogScope === 'unlocked' && !isUnlocked) return false;
+    if (state.catalogScope === 'locked' && isUnlocked) return false;
+    if (!['all', 'unlocked', 'locked'].includes(state.catalogScope) && b.species !== state.catalogScope) return false;
     if (state.catalogEnergy !== 'all' && b.energy !== state.catalogEnergy) return false;
     return true;
   });
@@ -1376,47 +1453,79 @@ function renderBreedCatalogWall() {
   for (const b of breeds) {
     const matched = byBreed.get(b.name) || [];
     const unlocked = matched.length > 0;
+    const energyMeta = ENERGY_TYPES.find((e) => e.id === b.energy) || ENERGY_TYPES[0];
+    const energyColor = energyMeta.orb[0];
+
     const cell = document.createElement('button');
     cell.type = 'button';
-    cell.className = `dex-catalog-cell${unlocked ? '' : ' is-locked'}`;
+    cell.className = `dex-catalog-cell${unlocked ? ' is-unlocked' : ' is-locked'}`;
+    if (unlocked) {
+      cell.style.borderColor = `${energyColor}8c`;
+    }
+
+    const art = document.createElement('div');
+    art.className = 'dex-catalog-art';
+    if (unlocked) {
+      art.style.background = `${energyColor}38`;
+    }
 
     const repCard = matched.find((c) => c.cutoutSrc) || matched[0];
     if (unlocked && repCard?.cutoutSrc) {
       const img = document.createElement('img');
       img.alt = b.name;
       img.src = repCard.cutoutSrc;
-      cell.appendChild(img);
+      art.appendChild(img);
     } else {
-      const ph = document.createElement('div');
-      ph.style.cssText = 'width:58px;height:58px;display:grid;place-items:center;font-size:26px;opacity:0.65;';
-      const spMeta = PET_SPECIES_PRESETS.find((s) => s.id === b.species);
-      ph.textContent = spMeta ? spMeta.emoji : '🐾';
-      cell.appendChild(ph);
+      const sil = document.createElement('div');
+      sil.className = 'dex-catalog-sil';
+      sil.innerHTML = speciesSilhouetteSvg(b.species, energyColor);
+      art.appendChild(sil);
+
+      const lockTxt = document.createElement('span');
+      lockTxt.className = 'dex-catalog-locked-txt';
+      lockTxt.textContent = '待发现';
+      art.appendChild(lockTxt);
     }
 
+    const orb = document.createElement('span');
+    orb.className = 'dex-catalog-orb';
+    orb.style.background = energyColor;
+    orb.style.color = energyMeta.ink || '#10141c';
+    orb.textContent = energyMeta.emoji;
+    art.appendChild(orb);
+
+    if (matched.length > 0) {
+      const qty = document.createElement('span');
+      qty.className = 'dex-catalog-qty';
+      qty.textContent = `×${matched.length}`;
+      art.appendChild(qty);
+    }
+
+    const meta = document.createElement('div');
+    meta.className = 'dex-catalog-meta';
+
     const title = document.createElement('strong');
-    title.textContent = b.shortName || b.name;
+    title.textContent = b.name;
     const sub = document.createElement('span');
-    sub.textContent = unlocked ? `已集 ${matched.length} 张` : '待捕捉';
-    cell.appendChild(title);
-    cell.appendChild(sub);
+    sub.className = 'dex-catalog-sub';
+    if (unlocked) {
+      const bestHp = Math.max(...matched.map((c) => Number(c.hp || 0)));
+      sub.textContent = `最高 HP ${bestHp}`;
+    } else {
+      sub.textContent = b.coat || '待发现';
+    }
+    meta.appendChild(title);
+    meta.appendChild(sub);
+
+    cell.appendChild(art);
+    cell.appendChild(meta);
 
     cell.addEventListener('click', () => {
       if (unlocked) {
-        if (matched.length === 1) {
-          openCardInspectModal(matched[0].id);
-        } else {
-          state.dexMode = 'cards';
-          state.dexDimension = 'species';
-          state.dexSpecies = b.species || 'all';
-          state.dexBreed = repCard.breedName || b.name;
-          $$('.dex-dim-pill', dom.dexDimensionBar).forEach((el) => {
-            el.classList.toggle('is-active', el.dataset.dim === 'species');
-          });
-          renderDexGrid();
-        }
+        const bestCard = [...matched].sort((a, c2) => Number(c2.hp || 0) - Number(a.hp || 0))[0] || matched[0];
+        openCardInspectModal(bestCard.id);
       } else {
-        showToast(`去抓拍或上传「${b.name}」照片即可解锁该品种图鉴！`);
+        showToast(`去「抓拍萌宠」拍摄或上传「${b.name}」即可点亮此图鉴卡位！`);
       }
     });
 
@@ -1747,7 +1856,12 @@ function refreshCloudSessionUI() {
   }
   dom.btnOpenCloudAuth?.classList.toggle('is-signed-in', signedIn);
   if (dom.btnDexCloudSync) {
-    dom.btnDexCloudSync.textContent = signedIn ? `☁ 已同步 (${sess.user.displayName})` : '☁ 云端同步 / 登录';
+    if (signedIn) {
+      const lvl = sess.user.trainerLevel || 1;
+      dom.btnDexCloudSync.innerHTML = `<span class="dex-lvl-avatar">☁</span><span>Lv.${lvl}</span>`;
+    } else {
+      dom.btnDexCloudSync.textContent = '💬 云端登录';
+    }
     dom.btnDexCloudSync.classList.toggle('is-signed-in', signedIn);
   }
   if (dom.authGuestPanel && dom.authSignedInPanel) {
@@ -2274,7 +2388,7 @@ function bindEvents() {
       openAuthModal();
     }
   });
-  dom.btnBackupExport.addEventListener('click', () => {
+  dom.btnBackupExport?.addEventListener('click', () => {
     const payload = JSON.stringify({ exportedAt: new Date().toISOString(), app: 'CatchCat-WebApp', cards: state.cards }, null, 2);
     const blob = new Blob([payload], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
@@ -2287,7 +2401,7 @@ function bindEvents() {
     setTimeout(() => URL.revokeObjectURL(url), 3000);
     showToast('已导出本机卡册 JSON 备份');
   });
-  dom.backupFileInput.addEventListener('change', async (e) => {
+  dom.backupFileInput?.addEventListener('change', async (e) => {
     const file = e.target.files?.[0];
     e.target.value = '';
     if (!file) return;
@@ -2804,6 +2918,14 @@ function bindEvents() {
     });
   });
   dom.btnAuthSubmit?.addEventListener('click', async () => {
+    const chkAgree = $('#chk-auth-agree');
+    if (chkAgree && !chkAgree.checked) {
+      if (dom.authErrorMsg) {
+        dom.authErrorMsg.textContent = '请先勾选同意《隐私政策》《用户协议》《收集清单》';
+        dom.authErrorMsg.hidden = false;
+      }
+      return;
+    }
     const account = (dom.authInputAccount?.value || '').trim();
     const password = dom.authInputPassword?.value || '';
     const displayName = (dom.authInputDisplayName?.value || '').trim();
@@ -2839,6 +2961,70 @@ function bindEvents() {
     showToast('已退出云端账号，本机图鉴数据仍安全保留');
   });
   dom.btnAuthSyncNow?.addEventListener('click', () => runCloudSync({ silent: false }));
+
+  // ── Compliance & Legal Center + Account Deletion ──
+  const openLegalModal = (tabId = 'privacy') => {
+    const modal = $('#modal-legal');
+    const tabsEl = $('#legal-tabs');
+    const bodyEl = $('#legal-doc-body');
+    if (!modal || !tabsEl || !bodyEl) return;
+    const renderTab = (activeId) => {
+      tabsEl.innerHTML = '';
+      for (const t of LEGAL_TABS) {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = `legal-tab-btn${t.id === activeId ? ' is-active' : ''}`;
+        btn.textContent = t.label;
+        btn.addEventListener('click', () => renderTab(t.id));
+        tabsEl.appendChild(btn);
+      }
+      bodyEl.innerHTML = LEGAL_DOCUMENTS[activeId] || LEGAL_DOCUMENTS.privacy;
+    };
+    renderTab(LEGAL_DOCUMENTS[tabId] ? tabId : 'privacy');
+    modal.hidden = false;
+  };
+
+  $$('[data-legal-tab]').forEach((el) => {
+    el.addEventListener('click', () => openLegalModal(el.dataset.legalTab || 'privacy'));
+  });
+  $('#btn-close-legal')?.addEventListener('click', () => { const m = $('#modal-legal'); if (m) m.hidden = true; });
+  $('#btn-legal-done')?.addEventListener('click', () => { const m = $('#modal-legal'); if (m) m.hidden = true; });
+
+  $('#btn-auth-delete-account')?.addEventListener('click', async () => {
+    if (!window.confirm('确认注销账号并清除云端同步数据吗？此操作不可撤销（本机未同步的草稿仍保留）。')) return;
+    try {
+      for (const c of state.cards) {
+        await deleteCardFromCloud(c.id).catch(() => {});
+      }
+      logoutCloudAccount();
+      refreshCloudSessionUI();
+      dom.modalAuth.hidden = true;
+      showToast('已注销云端账号并清除云端卡册数据');
+    } catch (err) {
+      showToast('注销处理失败，请检查网络后重试');
+    }
+  });
+
+  const consentKey = 'catchcat.privacy.consent.v1';
+  const modalConsent = $('#modal-privacy-consent');
+  if (modalConsent && localStorage.getItem(consentKey) === null) {
+    modalConsent.hidden = false;
+  }
+  $('#btn-privacy-decline')?.addEventListener('click', () => {
+    localStorage.setItem(consentKey, 'declined');
+    if (modalConsent) modalConsent.hidden = true;
+    showToast('已进入本地离线浏览模式');
+  });
+  $('#btn-privacy-accept')?.addEventListener('click', () => {
+    const chk = $('#chk-privacy-consent');
+    if (chk && !chk.checked) {
+      showToast('请先勾选同意以上合规条款');
+      return;
+    }
+    localStorage.setItem(consentKey, 'accepted');
+    if (modalConsent) modalConsent.hidden = true;
+    if (getCloudSession()) runCloudSync({ silent: true });
+  });
 }
 
 // ═══════════════════════ BOOTSTRAP ═══════════════════════
@@ -2860,7 +3046,7 @@ async function init() {
   syncControlsFromCurrentCard();
   renderStudioNow();
   startCameraStream(false);
-  if (getCloudSession()) {
+  if (getCloudSession() && localStorage.getItem('catchcat.privacy.consent.v1') === 'accepted') {
     runCloudSync({ silent: true });
   }
 }

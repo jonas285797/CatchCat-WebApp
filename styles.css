@@ -281,7 +281,8 @@ button {
   display: inline;
 }
 
-body.tab-studio .topbar {
+body.tab-studio .topbar,
+body.tab-dex .topbar {
   display: none;
 }
 
@@ -1169,7 +1170,11 @@ input[type="range"] {
   color: var(--page);
 }
 
-/* ── VIEW 3: 主子卡册 ── */
+/* ── VIEW 3: 萌宠图鉴（1:1 对齐 iOS CatDexView 深宝蓝背景与排版） ── */
+#view-dex {
+  background: linear-gradient(180deg, rgb(20, 33, 56) 0%, rgb(13, 23, 41) 100%);
+}
+
 .dex-wrap {
   max-width: 1160px;
   margin: 0 auto;
@@ -1180,26 +1185,62 @@ input[type="range"] {
 
 .dex-header {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 10px;
+  padding-top: calc(env(safe-area-inset-top) * 0.25);
+}
+
+.dex-header-spacer {
+  width: 76px;
+  flex: none;
 }
 
 .dex-header h2 {
-  font-size: 18px;
-  font-weight: 800;
+  flex: 1;
+  text-align: center;
+  font-size: 17px;
+  font-weight: 900;
+  color: #ffffff;
 }
 
-.dex-header p {
-  font-size: 12px;
-  color: var(--ink-3);
-  margin-top: 2px;
+.dex-top-auth-pill {
+  min-width: 76px;
+  min-height: 32px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  font-size: 11.5px;
+  font-weight: 900;
+  color: #ffffff;
+  background: linear-gradient(155deg, rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0.04));
+  backdrop-filter: blur(18px) saturate(1.55);
+  -webkit-backdrop-filter: blur(18px) saturate(1.55);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.24);
+  white-space: nowrap;
+  flex: none;
 }
 
-.dex-backup-actions {
-  display: flex;
-  gap: 8px;
+.dex-top-auth-pill:not(.is-signed-in) {
+  background: linear-gradient(155deg, rgba(30, 199, 140, 0.34), rgba(14, 128, 92, 0.22));
+  border-color: rgba(63, 224, 168, 0.45);
+}
+
+.dex-lvl-avatar {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #ffb81a;
+  color: #ffffff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  flex: none;
 }
 
 /* ── ALIGNED PETDEX DASHBOARD & LIQUID GLASS CONTROLS ── */
@@ -1303,6 +1344,21 @@ input[type="range"] {
 .dex-species-pill--dog {
   color: #1ec78c;
   background: rgba(30, 199, 140, 0.16);
+}
+
+.dex-species-pill--parrot {
+  color: #59bff2;
+  background: rgba(89, 191, 242, 0.16);
+}
+
+.dex-species-pill--guinea {
+  color: #ff9c6e;
+  background: rgba(255, 156, 110, 0.16);
+}
+
+.dex-species-pill--other {
+  color: #d973f2;
+  background: rgba(217, 115, 242, 0.16);
 }
 
 .dex-rarity-stats {
@@ -1500,11 +1556,124 @@ input[type="range"] {
 .dex-catalog-wall {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 12px;
 }
 
 .dex-catalog-wall[hidden] {
   display: none;
+}
+
+.dex-overview-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  border-radius: 18px;
+  background: rgb(33, 46, 71);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.dex-overview-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.dex-overview-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.dex-overview-grid-icon {
+  color: #ffb81a;
+  font-size: 14px;
+  font-weight: 900;
+}
+
+.dex-overview-title strong {
+  font-size: 14px;
+  font-weight: 900;
+  color: #ffffff;
+}
+
+.dex-overview-badge {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 900;
+  color: #1ec78c;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: rgba(30, 199, 140, 0.16);
+  white-space: nowrap;
+}
+
+.dex-overview-rarities {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.dex-rarity-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 800;
+  white-space: nowrap;
+  flex: none;
+}
+
+.dex-rarity-chip em {
+  font-weight: 900;
+  font-style: italic;
+}
+
+.dex-rarity-chip.is-common {
+  color: #9aa5b5;
+  background: rgba(142, 153, 170, 0.14);
+  border: 1px solid rgba(142, 153, 170, 0.32);
+}
+
+.dex-rarity-chip.is-uncommon {
+  color: #59bff2;
+  background: rgba(89, 191, 242, 0.14);
+  border: 1px solid rgba(89, 191, 242, 0.32);
+}
+
+.dex-rarity-chip.is-rare {
+  color: #d973f2;
+  background: rgba(217, 115, 242, 0.14);
+  border: 1px solid rgba(217, 115, 242, 0.32);
+}
+
+.dex-rarity-chip.is-epic {
+  color: #fac740;
+  background: rgba(250, 199, 64, 0.14);
+  border: 1px solid rgba(250, 199, 64, 0.32);
+}
+
+.dex-rarity-chip.is-crown {
+  color: #ffd700;
+  background: rgba(255, 215, 0, 0.14);
+  border: 1px solid rgba(255, 215, 0, 0.34);
+}
+
+.dex-overview-desc {
+  font-size: 11px;
+  line-height: 1.45;
+  color: rgb(189, 209, 240);
+}
+
+.dex-catalog-scope-bar .dex-sub-pill.is-active {
+  background: linear-gradient(150deg, rgba(255, 198, 56, 0.96), rgba(242, 146, 16, 0.88));
+  color: #161108;
+  border-color: rgba(255, 240, 180, 0.55);
 }
 
 .dex-catalog-grid {
@@ -1515,38 +1684,122 @@ input[type="range"] {
 
 .dex-catalog-cell {
   border-radius: 16px;
-  padding: 10px 8px;
+  padding: 8px;
   display: flex;
   flex-direction: column;
   align-items: center;
   text-align: center;
-  gap: 5px;
-  background: linear-gradient(155deg, rgba(255, 255, 255, 0.11), rgba(255, 255, 255, 0.03));
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18);
+  gap: 6px;
+  background: rgb(31, 43, 69);
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  transition: transform 0.15s var(--ease);
 }
 
-.dex-catalog-cell.is-locked {
-  opacity: 0.48;
+.dex-catalog-cell:active {
+  transform: scale(0.97);
 }
 
-.dex-catalog-cell img {
-  width: 58px;
-  height: 58px;
+.dex-catalog-art {
+  position: relative;
+  width: 100%;
+  height: 76px;
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.dex-catalog-art img {
+  height: 68px;
+  max-width: calc(100% - 8px);
   object-fit: contain;
 }
 
-.dex-catalog-cell strong {
-  font-size: 11.5px;
+.dex-catalog-sil {
+  width: 26px;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.6;
+}
+
+.dex-catalog-locked-txt {
+  font-size: 9px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.45);
+}
+
+.dex-catalog-orb {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 9px;
   font-weight: 800;
+  line-height: 1;
+}
+
+.dex-catalog-qty {
+  position: absolute;
+  top: 5px;
+  left: 5px;
+  padding: 1.5px 5px;
+  border-radius: 999px;
+  background: #ffb81a;
+  color: #10141c;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 900;
+  line-height: 1.2;
+}
+
+.dex-catalog-meta {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.dex-catalog-cell strong {
+  font-size: 11px;
+  font-weight: 800;
+  color: rgba(255, 255, 255, 0.72);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+.dex-catalog-cell.is-unlocked strong {
+  font-weight: 900;
   color: #ffffff;
 }
 
-.dex-catalog-cell span {
-  font-size: 9.5px;
-  color: rgba(196, 212, 236, 0.78);
+.dex-catalog-sub {
+  font-size: 9px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.42);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+.dex-catalog-cell.is-unlocked .dex-catalog-sub {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  color: #1ec78c;
 }
 
 .dex-grid {
@@ -2380,7 +2633,8 @@ input[type="range"] {
 }
 
 @media (min-width: 860px) {
-  body.tab-studio .topbar {
+  body.tab-studio .topbar,
+  body.tab-dex .topbar {
     display: flex;
   }
   .desk-only {
@@ -2724,6 +2978,139 @@ input[type="range"] {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 8px;
+}
+
+/* ── 合规公示中心与 AI 显式标识 ── */
+.ai-explicit-badge {
+  font-size: 10.5px;
+  color: rgba(196, 212, 236, 0.72);
+  text-align: center;
+  margin-top: 6px;
+}
+
+.legal-inline-link {
+  color: #ffb81a;
+  font-size: 11.5px;
+  font-weight: 700;
+  text-decoration: underline;
+  padding: 0 2px;
+}
+
+.legal-danger-link {
+  color: #ff6b7a;
+  font-size: 11.5px;
+  font-weight: 700;
+}
+
+.legal-consent-box {
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  font-size: 12px;
+  line-height: 1.55;
+  color: rgba(235, 242, 255, 0.88);
+  margin: 10px 0;
+}
+
+.legal-consent-box ul {
+  margin: 6px 0 0 16px;
+  padding: 0;
+}
+
+.legal-consent-box li + li {
+  margin-top: 4px;
+}
+
+.legal-doc-links {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.legal-tabs {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding: 4px 0 8px;
+  scrollbar-width: none;
+}
+
+.legal-tab-btn {
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 800;
+  color: rgba(226, 234, 248, 0.85);
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  white-space: nowrap;
+  flex: none;
+}
+
+.legal-tab-btn.is-active {
+  background: #ffb81a;
+  color: #14171c;
+  border-color: rgba(255, 240, 180, 0.6);
+}
+
+.legal-doc-body {
+  max-height: 55vh;
+  overflow-y: auto;
+  padding: 14px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  font-size: 12.5px;
+  line-height: 1.65;
+  color: rgba(235, 242, 255, 0.88);
+}
+
+.legal-doc-body h4 {
+  font-size: 15px;
+  font-weight: 900;
+  color: #ffffff;
+  margin-bottom: 4px;
+}
+
+.legal-doc-body h5 {
+  font-size: 13px;
+  font-weight: 800;
+  color: #ffb81a;
+  margin: 12px 0 4px;
+}
+
+.legal-doc-body .legal-meta {
+  font-size: 11px;
+  color: rgba(196, 212, 236, 0.65);
+  margin-bottom: 8px;
+}
+
+.legal-doc-body ul {
+  margin: 4px 0 6px 18px;
+  padding: 0;
+}
+
+.legal-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 8px;
+  font-size: 11.5px;
+}
+
+.legal-table th,
+.legal-table td {
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  padding: 6px 8px;
+  text-align: left;
+}
+
+.legal-table th {
+  background: rgba(255, 255, 255, 0.08);
+  color: #ffffff;
+  font-weight: 800;
 }
 
 @media (max-width: 520px) {
