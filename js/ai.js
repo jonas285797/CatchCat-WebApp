@@ -2,7 +2,7 @@ import {
   BREED_QUICK_PICKS,
   inferPetMoodProfile,
   resolveSmartBackgroundForPet
-} from './presets.js?v=20261128a';
+} from './presets.js?v=20261128b';
 
 const moodMetricsCache = new WeakMap();
 

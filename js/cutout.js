@@ -93,9 +93,9 @@ export class WebCutoutEngine {
   }
 
   /**
-   * 载入原图到最大 640px 内部工作区，保证移动端与桌面端实时调参流畅
+   * 载入原图到最大 1024px 内部工作区，保留发丝与胡须细节同时保持流畅响应
    */
-  loadImage(img, maxDim = 640) {
+  loadImage(img, maxDim = 1024) {
     const natW = img.naturalWidth || img.width;
     const natH = img.naturalHeight || img.height;
     const scale = Math.min(1, maxDim / Math.max(natW, natH));
@@ -222,13 +222,14 @@ export class WebCutoutEngine {
   }
 
   /**
-   * 用 Guided Filter 细化神经网络显著性掩膜，并响应容差/羽化滑块即时调整
+   * Trimap 走廊 + 联合导向滤波 + 局部色彩矢量 Alpha 求解，精准保住单根细毛与胡须并剔除背景杂物
    */
   applyNeuralSaliency(sensitivity = 0.54, feather = 2) {
     const w = this.width;
     const h = this.height;
     const n = w * h;
     const src = this.sourcePixels;
+    const sal = this.neuralSaliency;
 
     const luma = new Float32Array(n);
     for (let i = 0; i < n; i++) {
@@ -236,24 +237,84 @@ export class WebCutoutEngine {
       luma[i] = (0.299 * src[p4] + 0.587 * src[p4 + 1] + 0.114 * src[p4 + 2]) / 255.0;
     }
 
-    const radius = Math.max(2, Math.round(feather + 2));
-    const refined = this.guidedFilterGray(luma, this.neuralSaliency, w, h, radius, 0.006);
+    const rFine = 2;
+    const rMed = Math.max(4, Math.round(feather + 3));
+    const guidedFine = this.guidedFilterGray(luma, sal, w, h, rFine, 0.0025);
+    const guidedMed = this.guidedFilterGray(luma, sal, w, h, rMed, 0.008);
 
     const delta = sensitivity - 0.54;
-    const low = Math.min(0.42, Math.max(0.03, 0.13 - delta * 0.28));
-    const high = Math.min(0.90, Math.max(low + 0.08, 0.64 - delta * 0.44));
+    const low = Math.min(0.40, Math.max(0.04, 0.14 - delta * 0.28));
+    const high = Math.min(0.88, Math.max(low + 0.10, 0.66 - delta * 0.44));
     const span = high - low;
 
-    const cleaned = new Float32Array(n);
+    // 构造 Trimap 内核与外扩发丝带，防止背景桌椅误入且保留高置信主体实心
+    const fgSeed = new Float32Array(n);
     for (let i = 0; i < n; i++) {
-      let a = (refined[i] - low) / span;
-      if (a < 0) a = 0;
-      else if (a > 1) a = 1;
-      cleaned[i] = a;
+      if (sal[i] >= 0.42) fgSeed[i] = 1;
+    }
+    const corridorR = Math.max(5, Math.round(feather * 2.2 + 5));
+    const corridor = this.boxMean(fgSeed, w, h, corridorR);
+
+    const cleaned = new Float32Array(n);
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        const i = y * w + x;
+        if (sal[i] >= 0.88 && guidedMed[i] >= 0.80) {
+          cleaned[i] = 1.0;
+          continue;
+        }
+        if (corridor[i] <= 0.004 && sal[i] < 0.08) {
+          cleaned[i] = 0.0;
+          continue;
+        }
+
+        const gBlend = guidedFine[i] * 0.65 + guidedMed[i] * 0.35;
+        let a = (gBlend - low) / span;
+        a = a < 0 ? 0 : (a > 1 ? 1 : a);
+
+        // Unknown 发丝走廊：采样局部前景 FG / 背景 BG 做 RGB 线性分离，解决亮度接近时的细毛/胡须黏连
+        if (a > 0.05 && a < 0.94) {
+          let fR = 0, fG = 0, fB = 0, fN = 0;
+          let bR = 0, bG = 0, bB = 0, bN = 0;
+          const x0 = Math.max(0, x - 5), x1 = Math.min(w - 1, x + 5);
+          const y0 = Math.max(0, y - 5), y1 = Math.min(h - 1, y + 5);
+          for (let ny = y0; ny <= y1; ny += 2) {
+            const row = ny * w;
+            for (let nx = x0; nx <= x1; nx += 2) {
+              const ni = row + nx;
+              const sv = sal[ni];
+              const np4 = ni * 4;
+              if (sv >= 0.84) {
+                fR += src[np4]; fG += src[np4 + 1]; fB += src[np4 + 2]; fN++;
+              } else if (sv <= 0.10) {
+                bR += src[np4]; bG += src[np4 + 1]; bB += src[np4 + 2]; bN++;
+              }
+            }
+          }
+          if (fN > 0 && bN > 0) {
+            const mr = fR / fN - bR / bN;
+            const mg = fG / fN - bG / bN;
+            const mb = fB / fN - bB / bN;
+            const d2 = mr * mr + mg * mg + mb * mb;
+            if (d2 > 420) {
+              const p4 = i * 4;
+              const cr = src[p4] - bR / bN;
+              const cg = src[p4 + 1] - bG / bN;
+              const cb = src[p4 + 2] - bB / bN;
+              let cAlpha = (cr * mr + cg * mg + cb * mb) / d2;
+              if (cAlpha < 0) cAlpha = 0;
+              else if (cAlpha > 1) cAlpha = 1;
+              a = a * 0.62 + cAlpha * 0.38;
+            }
+          }
+        }
+        cleaned[i] = a;
+      }
     }
 
-    // 仅清理极微小的孤立噪点，保留多宠与分离耳尖/尾尖
-    this.pruneTinySpecks(cleaned, w, h);
+    // 保留主体及紧密耳尖/尾尖/胡须轮廓，强力清扫游离背景物体
+    this.pruneDisconnectedNoise(cleaned, w, h);
+    this.fillSmallInteriorHoles(cleaned, sal, w, h, 400);
     this.baseAlpha.set(cleaned);
     return this.buildCompositeResult();
   }
@@ -984,28 +1045,31 @@ export class WebCutoutEngine {
         let g = src[p4 + 1];
         let b = src[p4 + 2];
 
-        // 对半透明边缘发丝进行去溢色，吸取邻近高置信实心前景像素色彩减轻浅灰/白边
-        if (a > 0.06 && a < 0.88) {
-          let sr = 0, sg = 0, sb = 0, hits = 0;
-          const x0 = Math.max(0, x - 2), x1 = Math.min(w - 1, x + 2);
-          const y0 = Math.max(0, y - 2), y1 = Math.min(h - 1, y + 2);
+        // 对半透明发丝边缘进行空间加权色溢净化（Decontaminate Colors），彻底去掉背光白/灰边
+        if (a > 0.04 && a < 0.90) {
+          let sr = 0, sg = 0, sb = 0, wSum = 0;
+          const x0 = Math.max(0, x - 3), x1 = Math.min(w - 1, x + 3);
+          const y0 = Math.max(0, y - 3), y1 = Math.min(h - 1, y + 3);
           for (let ny = y0; ny <= y1; ny++) {
+            const dy = ny - y;
             for (let nx = x0; nx <= x1; nx++) {
               const ni = ny * w + nx;
               if (effectiveAlpha[ni] >= 0.88) {
+                const dx = nx - x;
+                const distW = 1.0 / (dx * dx + dy * dy + 1.0);
                 const np4 = ni * 4;
-                sr += src[np4];
-                sg += src[np4 + 1];
-                sb += src[np4 + 2];
-                hits++;
+                sr += src[np4] * distW;
+                sg += src[np4 + 1] * distW;
+                sb += src[np4 + 2] * distW;
+                wSum += distW;
               }
             }
           }
-          if (hits > 0) {
-            const mix = (1 - a) * 0.52;
-            r = Math.round(r * (1 - mix) + (sr / hits) * mix);
-            g = Math.round(g * (1 - mix) + (sg / hits) * mix);
-            b = Math.round(b * (1 - mix) + (sb / hits) * mix);
+          if (wSum > 0) {
+            const mix = Math.min(0.88, (1 - a) * 0.78);
+            r = Math.round(r * (1 - mix) + (sr / wSum) * mix);
+            g = Math.round(g * (1 - mix) + (sg / wSum) * mix);
+            b = Math.round(b * (1 - mix) + (sb / wSum) * mix);
           }
         }
 

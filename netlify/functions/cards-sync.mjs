@@ -26,7 +26,19 @@ export default async (req) => {
 
   if (req.method === 'GET') {
     try {
-      const { blobs } = await store.list({ prefix: cardsPrefix });
+      const imagesPrefix = `images/${user.userId}/`;
+      const [{ blobs }, { blobs: imgBlobs }] = await Promise.all([
+        store.list({ prefix: cardsPrefix }),
+        store.list({ prefix: imagesPrefix })
+      ]);
+      const realCutoutIds = new Set();
+      for (const ib of imgBlobs) {
+        const key = String(ib.key || '');
+        if (key.startsWith(imagesPrefix) && key.endsWith('_cutout.png')) {
+          realCutoutIds.add(key.slice(imagesPrefix.length, -'_cutout.png'.length));
+        }
+      }
+
       const rows = await Promise.all(
         blobs.map(async (b) => {
           const item = await store.get(b.key, { type: 'json', consistency: 'strong' });
@@ -35,7 +47,11 @@ export default async (req) => {
       );
       const valid = rows
         .filter((r) => r && r.id && !r.deleted)
-        .sort((a, b) => Number(b.updatedAt || b.createdAt || 0) - Number(a.updatedAt || a.createdAt || 0));
+        .map((r) => ({
+          ...r,
+          hasCutout: realCutoutIds.has(r.id)
+        }))
+        .sort((a, b) => Number(b.createdAt || b.updatedAt || 0) - Number(a.createdAt || a.updatedAt || 0));
 
       return jsonResponse({
         user: publicUserView(user),
@@ -61,15 +77,20 @@ export default async (req) => {
 
       const cutoutB64 = stripDataUrlPrefix(body?.cutoutBase64);
       const origB64 = stripDataUrlPrefix(body?.originalBase64);
+      let savedCutout = false;
 
       if (cutoutB64) {
         const buf = Buffer.from(cutoutB64, 'base64');
+        const isPng = buf.length > 64 && buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4e && buf[3] === 0x47;
         if (buf.length > 4_200_000) {
           return jsonResponse({ error: '抠图文件过大（上限 4MB）' }, 413);
         }
-        await store.set(`images/${user.userId}/${safeId}_cutout.png`, buf, {
-          metadata: { contentType: 'image/png', updatedAt: Date.now() }
-        });
+        if (isPng) {
+          await store.set(`images/${user.userId}/${safeId}_cutout.png`, buf, {
+            metadata: { contentType: 'image/png', updatedAt: Date.now() }
+          });
+          savedCutout = true;
+        }
       }
 
       if (origB64) {
@@ -77,17 +98,20 @@ export default async (req) => {
         if (buf.length > 4_200_000) {
           return jsonResponse({ error: '原图文件过大（上限 4MB）' }, 413);
         }
-        await store.set(`images/${user.userId}/${safeId}_orig.jpg`, buf, {
-          metadata: { contentType: 'image/jpeg', updatedAt: Date.now() }
-        });
+        if (buf.length > 64) {
+          await store.set(`images/${user.userId}/${safeId}_orig.jpg`, buf, {
+            metadata: { contentType: 'image/jpeg', updatedAt: Date.now() }
+          });
+        }
       }
 
       const existing = await store.get(`${cardsPrefix}${safeId}.json`, { type: 'json', consistency: 'strong' });
+      const cutoutMeta = savedCutout ? true : Boolean(await store.getMetadata(`images/${user.userId}/${safeId}_cutout.png`).catch(() => null));
       const now = Date.now();
 
-      // 切勿把前端本地 data URL / 绝对文件路径存进云端 JSON
+      // 切勿把前端本地 data URL / 绝对文件路径 / 占位路径存进云端 JSON
       const cleanCard = { ...cardInput, id: safeId };
-      if (typeof cleanCard.cutoutSrc === 'string' && cleanCard.cutoutSrc.startsWith('data:')) {
+      if (typeof cleanCard.cutoutSrc === 'string') {
         delete cleanCard.cutoutSrc;
       }
       delete cleanCard.localImageData;
@@ -96,7 +120,7 @@ export default async (req) => {
       const record = {
         ...cleanCard,
         ownerId: user.userId,
-        hasCutout: Boolean(cutoutB64 || existing?.hasCutout || cleanCard.cutoutSrc),
+        hasCutout: cutoutMeta,
         hasOriginal: Boolean(origB64 || existing?.hasOriginal),
         createdAt: Number(cleanCard.createdAt || existing?.createdAt || now),
         updatedAt: Math.max(Number(cleanCard.updatedAt || 0), now)

@@ -392,3 +392,98 @@ export function resolveSmartBackgroundForPet(card = {}, trimMetrics = null) {
   return list[hash % list.length] || 'solarCelebration';
 }
 
+// 与 iOS PetBreed.allCases 1:1 对齐的全套 52 品种名录（21 猫 + 31 狗）
+export const PET_CATALOG_BREEDS = [
+  // 21 猫咪
+  { name: '中华橘猫', shortName: '大橘', species: 'cat', coat: '金被银床', energy: 'food' },
+  { name: '中华狸花猫', shortName: '中华狸花', species: 'cat', coat: '铁尺鱼骨', energy: 'swift' },
+  { name: '奶牛猫', shortName: '奶牛猫', species: 'cat', coat: '乌云盖雪', energy: 'brawl' },
+  { name: '三花猫', shortName: '三花猫', species: 'cat', coat: '玳瑁锦绣', energy: 'charm' },
+  { name: '玄猫(纯黑)', shortName: '玄猫', species: 'cat', coat: '踏雪寻梅', energy: 'dark' },
+  { name: '四川简州猫', shortName: '简州猫', species: 'cat', coat: '铁棒打樱桃', energy: 'swift' },
+  { name: '临清狮子猫', shortName: '狮子猫', species: 'cat', coat: '雪里拖枪', energy: 'charm' },
+  { name: '乌云盖雪', shortName: '礼服猫', species: 'cat', coat: '墨玉垂珠', energy: 'brawl' },
+  { name: '混血田园喵', shortName: '街头浪喵', species: 'cat', coat: '百战灵纹', energy: 'normal' },
+  { name: '英国短毛猫', shortName: '英国短毛猫', species: 'cat', coat: '蓝绒银辉', energy: 'normal' },
+  { name: '英短蓝猫', shortName: '英短蓝猫', species: 'cat', coat: '雾霾丝绒蓝', energy: 'normal' },
+  { name: '英短蓝白', shortName: '蓝白英短', species: 'cat', coat: '正八字蓝白', energy: 'swift' },
+  { name: '英短金渐层', shortName: '金渐层', species: 'cat', coat: '鎏金黑绒', energy: 'food' },
+  { name: '英短银渐层', shortName: '银渐层', species: 'cat', coat: '素裹霜雪', energy: 'charm' },
+  { name: '异国短毛猫(加菲猫)', shortName: '加菲猫', species: 'cat', coat: '虎斑扁脸', energy: 'food' },
+  { name: '美国短毛猫', shortName: '美国短毛猫', species: 'cat', coat: '银虎标斑', energy: 'swift' },
+  { name: '布偶猫', shortName: '布偶猫', species: 'cat', coat: '海豹双色开脸', energy: 'charm' },
+  { name: '暹罗猫', shortName: '暹罗猫', species: 'cat', coat: '挖煤重点色', energy: 'dark' },
+  { name: '波斯猫', shortName: '波斯猫', species: 'cat', coat: '雪缎长毛', energy: 'charm' },
+  { name: '缅因猫', shortName: '缅因猫', species: 'cat', coat: '荒野狮鬃', energy: 'dark' },
+  { name: '斯芬克斯无毛猫', shortName: '无毛猫', species: 'cat', coat: '粉玉丝绒', energy: 'dark' },
+  // 31 狗狗
+  { name: '中华田园犬', shortName: '大黄/田园犬', species: 'dog', coat: '赤黄守望', energy: 'food' },
+  { name: '松狮犬', shortName: '松狮犬', species: 'dog', coat: '狮鬃赤毛', energy: 'brawl' },
+  { name: '西施犬', shortName: '西施犬', species: 'dog', coat: '双色长绒', energy: 'charm' },
+  { name: '北京犬(京巴)', shortName: '京巴', species: 'dog', coat: '御前金缎', energy: 'charm' },
+  { name: '巴哥犬', shortName: '巴哥犬', species: 'dog', coat: '黑面沙米', energy: 'food' },
+  { name: '沙皮犬', shortName: '沙皮犬', species: 'dog', coat: '褶皱墨沙', energy: 'brawl' },
+  { name: '贵州下司犬', shortName: '下司犬', species: 'dog', coat: '雪白虎爪', energy: 'swift' },
+  { name: '藏獒', shortName: '藏獒', species: 'dog', coat: '铁包金鬃', energy: 'brawl' },
+  { name: '昆明犬(狼青)', shortName: '昆明犬', species: 'dog', coat: '狼青铁脊', energy: 'swift' },
+  { name: '重庆猎犬', shortName: '重庆猎犬', species: 'dog', coat: '赤褐竹尾', energy: 'swift' },
+  { name: '金毛寻回犬', shortName: '金毛寻回犬', species: 'dog', coat: '流金碎玉', energy: 'food' },
+  { name: '拉布拉多寻回犬', shortName: '拉布拉多', species: 'dog', coat: '奶昔米黄', energy: 'food' },
+  { name: '威尔士柯基犬', shortName: '柯基犬', species: 'dog', coat: '金鞍伏地', energy: 'food' },
+  { name: '日本柴犬', shortName: '日本柴犬', species: 'dog', coat: '赤柴红云', energy: 'food' },
+  { name: '边境牧羊犬', shortName: '边境牧羊犬', species: 'dog', coat: '黑白玄冠', energy: 'swift' },
+  { name: '哈士奇(雪橇犬)', shortName: '哈士奇', species: 'dog', coat: '黑白三把火', energy: 'swift' },
+  { name: '萨摩耶犬', shortName: '萨摩耶', species: 'dog', coat: '雪域白仙', energy: 'charm' },
+  { name: '德国牧羊犬', shortName: '德牧', species: 'dog', coat: '黑背金甲', energy: 'swift' },
+  { name: '法国斗牛犬', shortName: '法斗', species: 'dog', coat: '奶油虎斑', energy: 'brawl' },
+  { name: '贵宾犬(泰迪)', shortName: '泰迪', species: 'dog', coat: '焦糖卷毛', energy: 'charm' },
+  { name: '博美犬', shortName: '博美犬', species: 'dog', coat: '蓬松金球', energy: 'charm' },
+  { name: '杜宾犬', shortName: '杜宾犬', species: 'dog', coat: '墨金战甲', energy: 'swift' },
+  { name: '罗威纳犬', shortName: '罗威纳', species: 'dog', coat: '乌金铠甲', energy: 'brawl' },
+  { name: '迷你雪纳瑞', shortName: '雪纳瑞', species: 'dog', coat: '椒盐长须', energy: 'dark' },
+  { name: '阿拉斯加雪橇犬', shortName: '阿拉斯加', species: 'dog', coat: '雪岭巨熊', energy: 'brawl' },
+  { name: '比格犬', shortName: '比格犬', species: 'dog', coat: '三色垂耳', energy: 'swift' },
+  { name: '吉娃娃', shortName: '吉娃娃', species: 'dog', coat: '杏眼小巧', energy: 'dark' },
+  { name: '比熊犬', shortName: '比熊犬', species: 'dog', coat: '棉花糖白', energy: 'charm' },
+  { name: '约克夏梗', shortName: '约克夏', species: 'dog', coat: '钢蓝鎏金', energy: 'charm' },
+  { name: '腊肠犬', shortName: '腊肠犬', species: 'dog', coat: '琥珀短腿', energy: 'food' },
+  { name: '马尔济斯犬', shortName: '马尔济斯', species: 'dog', coat: '白雪丝缎', energy: 'charm' }
+];
+
+export const CARD_RARITY_PRESETS = [
+  { id: 'common', label: '普通', symbol: '◆', rank: 0, color: '#8e99aa' },
+  { id: 'uncommon', label: '罕见', symbol: '◆◆', rank: 1, color: '#59bff2' },
+  { id: 'rare', label: '稀有', symbol: '◆◆◆', rank: 2, color: '#d973f2' },
+  { id: 'epic', label: '史诗', symbol: '★★★', rank: 3, color: '#fac740' },
+  { id: 'crown', label: '皇冠传说', symbol: '👑', rank: 4, color: '#ffd700' }
+];
+
+export function computeCardRarity(card = {}) {
+  const hp = Number(card.hp || 0);
+  const sfx = String(card.suffix || '').toLowerCase();
+  if (hp >= 260 || sfx === 'ex' || sfx === 'vstar') return 'crown';
+  if (hp >= 200) return 'epic';
+  if ((card.abilityName || card.personalityTag) && card.attackName && hp >= 165) return 'rare';
+  if (hp >= 140) return 'uncommon';
+  return 'common';
+}
+
+export function matchCatalogBreed(card = {}) {
+  const hay = `${card.breedName || ''} ${card.name || ''}`.toLowerCase();
+  const exact = PET_CATALOG_BREEDS.find((b) => b.name.toLowerCase() === String(card.breedName || '').trim().toLowerCase());
+  if (exact) return exact;
+  return PET_CATALOG_BREEDS.find((b) =>
+    hay.includes(b.shortName.toLowerCase()) ||
+    hay.includes(b.name.replace(/\(.*?\)/g, '').toLowerCase())
+  ) || null;
+}
+
+export function resolveCardSpecies(card = {}) {
+  if (card.species === 'dog' || card.species === 'cat') return card.species;
+  const cat = matchCatalogBreed(card);
+  if (cat) return cat.species;
+  const hay = `${card.breedName || ''} ${card.name || ''}`.toLowerCase();
+  if (hay.includes('犬') || hay.includes('狗') || hay.includes('牧羊') || hay.includes('柯基') || hay.includes('柴')) return 'dog';
+  return 'cat';
+}
+

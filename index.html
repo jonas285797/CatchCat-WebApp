@@ -20,7 +20,7 @@
     }
   }
   </script>
-  <link rel="stylesheet" href="styles.css?v=20261128a">
+  <link rel="stylesheet" href="styles.css?v=20261128b">
 </head>
 <body>
   <div class="app-shell">
@@ -510,27 +510,106 @@
         </div>
       </section>
 
-      <!-- ═══════════════════════ VIEW 3: 萌宠图鉴（本地 + 云端双端同步存档） ═══════════════════════ -->
+      <!-- ═══════════════════════ VIEW 3: 萌宠图鉴（对齐 iOS CatDexView 仪表盘 + 本地/云端并集同步） ═══════════════════════ -->
       <section class="view" id="view-dex" aria-label="萌宠图鉴">
         <div class="dex-wrap">
           <div class="dex-header">
             <div>
-              <h2>萌宠全息图鉴</h2>
-              <p id="dex-stats-line">宝可梦 63×88mm 标准实体规格 · 支持点击沉浸看卡/编辑档案与跨端云同步</p>
+              <h2>萌宠图鉴</h2>
+              <p id="dex-stats-line">63×88mm 实体规格 · 与 iOS 端图鉴并集对齐</p>
             </div>
             <div class="dex-backup-actions">
-              <button type="button" class="cloud-auth-pill" id="btn-dex-cloud-sync">☁ 云同步 / 登录</button>
-              <button type="button" class="btn-chip" id="btn-backup-export">备份卡册</button>
-              <label class="btn-chip" for="backup-file-input">导入恢复</label>
+              <button type="button" class="cloud-auth-pill" id="btn-dex-cloud-sync">☁ 云同步</button>
+              <button type="button" class="btn-chip" id="btn-backup-export">备份</button>
+              <label class="btn-chip" for="backup-file-input">恢复</label>
               <input id="backup-file-input" type="file" accept="application/json" hidden>
             </div>
           </div>
 
-          <div class="dex-toolbar">
-            <input type="search" id="dex-search" placeholder="搜索昵称、品种、花色…">
-            <div class="dex-energy-filter" id="dex-energy-filter"></div>
+          <!-- 收集仪表盘（1:1 复刻 iOS vibrantCollectionDashboard · Liquid Glass 零阴影） -->
+          <div class="dex-dashboard-card" id="dex-dashboard-card">
+            <div class="dex-ring-wrap">
+              <svg class="dex-ring-svg" viewBox="0 0 76 76" aria-hidden="true">
+                <defs>
+                  <linearGradient id="dex-ring-grad" x1="0" y1="0" x2="1" y2="1">
+                    <stop offset="0%" stop-color="#ffb81a"/>
+                    <stop offset="100%" stop-color="#ff6b59"/>
+                  </linearGradient>
+                </defs>
+                <circle class="dex-ring-track" cx="38" cy="38" r="32"/>
+                <circle class="dex-ring-arc" id="dex-ring-arc" cx="38" cy="38" r="32" stroke="url(#dex-ring-grad)"/>
+              </svg>
+              <div class="dex-ring-center">
+                <strong id="dex-dash-count">0</strong>
+                <span>张闪卡</span>
+              </div>
+            </div>
+
+            <div class="dex-dash-mid">
+              <div class="dex-dash-title-row">
+                <strong>CatDex 图鉴收集</strong>
+                <span class="dex-species-pill dex-species-pill--cat" id="dex-cat-prog">🐱 0/21</span>
+                <span class="dex-species-pill dex-species-pill--dog" id="dex-dog-prog" hidden>🐶 0/31</span>
+              </div>
+              <div class="dex-rarity-stats">
+                <span class="dex-stat-pill">👑 <strong id="dex-stat-crown">0</strong></span>
+                <span class="dex-stat-pill">★ <strong id="dex-stat-epic">0</strong></span>
+                <span class="dex-stat-pill">◆ <strong id="dex-stat-rare">0</strong></span>
+              </div>
+              <button type="button" class="dex-cloud-link" id="btn-dex-cloud-inline">
+                <span class="dex-cloud-dot" id="dex-cloud-dot"></span>
+                <span id="dex-cloud-status-line">登录云账号 · iOS / Web 双端互通</span>
+              </button>
+            </div>
+
+            <div class="dex-dash-pct">
+              <strong id="dex-completion-pct">0%</strong>
+              <span>达成率</span>
+            </div>
           </div>
 
+          <!-- 模式切换条：我的闪卡 vs 全套 52 种图鉴名录 -->
+          <div class="dex-mode-bar" id="dex-mode-bar">
+            <button type="button" class="dex-mode-btn is-active" data-dex-mode="cards">
+              <span>🗂</span>
+              <span id="dex-mode-cards-label">我的闪卡 (0)</span>
+            </button>
+            <button type="button" class="dex-mode-btn" data-dex-mode="catalog">
+              <span>⊞</span>
+              <span>全套图鉴名录 · 共 52 种</span>
+            </button>
+          </div>
+
+          <!-- 闪卡视图顶部筛选栏（搜索 · 收藏 · 排序 + 维度切换 + 次级胶囊） -->
+          <div class="dex-toolbar" id="dex-cards-toolbar">
+            <div class="dex-search-sort-row">
+              <input type="search" id="dex-search" placeholder="搜昵称、品种、花色或街区…">
+              <button type="button" class="dex-tool-pill" id="btn-dex-fav" aria-pressed="false">♡ 收藏</button>
+              <select id="dex-sort-select" class="dex-sort-select" aria-label="排序方式">
+                <option value="newest">⇅ 最新收录</option>
+                <option value="rarity">⇅ 稀有度优先</option>
+                <option value="hpDesc">⇅ 战力 HP 最高</option>
+                <option value="encounters">⇅ 邂逅次数</option>
+              </select>
+            </div>
+
+            <div class="dex-dimension-bar" id="dex-dimension-bar">
+              <button type="button" class="dex-dim-pill is-active" data-dim="rarity">品阶等级</button>
+              <button type="button" class="dex-dim-pill" data-dim="breed">品种谱系</button>
+              <button type="button" class="dex-dim-pill" data-dim="coat">相猫经花色</button>
+            </div>
+
+            <div class="dex-subfilter-bar" id="dex-subfilter-bar"></div>
+          </div>
+
+          <!-- 52 品种全图鉴墙（切到「全套图鉴名录」显示） -->
+          <div class="dex-catalog-wall" id="dex-catalog-wall" hidden>
+            <div class="dex-subfilter-bar" id="dex-catalog-scope-bar"></div>
+            <div class="dex-subfilter-bar" id="dex-catalog-energy-bar"></div>
+            <div class="dex-catalog-grid" id="dex-catalog-grid"></div>
+          </div>
+
+          <!-- 底部双列卡片网格（保留用户确认的展示方式） -->
           <div class="dex-grid" id="dex-grid"></div>
         </div>
       </section>
@@ -891,7 +970,7 @@
   <!-- 全局轻提示 -->
   <div class="toast" id="app-toast" role="status" aria-live="polite" hidden></div>
 
-  <script type="module" src="js/app.js?v=20261128a"></script>
+  <script type="module" src="js/app.js?v=20261128b"></script>
 </body>
 </html>
 

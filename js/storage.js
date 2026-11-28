@@ -1,4 +1,4 @@
-import { SAMPLE_CARDS } from './presets.js?v=20261128a';
+import { SAMPLE_CARDS } from './presets.js?v=20261128b';
 
 const DB_NAME = 'CatchCatStudioDB';
 const DB_VERSION = 1;
@@ -29,7 +29,7 @@ export async function loadAllCards() {
     });
     const seededV4 = localStorage.getItem('CatchCat_Web_SeededV4') === '1';
     if (rows.length > 0 && seededV4) {
-      return rows.sort((a, b) => (b.updatedAt || b.createdAt || 0) - (a.updatedAt || a.createdAt || 0));
+      return rows.sort((a, b) => (b.createdAt || b.updatedAt || 0) - (a.createdAt || a.updatedAt || 0));
     }
     // 升级 V4 时更新官方示范卡为 15 套炫彩背景 + 智能性格贴合（保留用户自建卡不受影响）
     await new Promise((resolve, reject) => {
@@ -55,7 +55,7 @@ export async function loadAllCards() {
       req.onsuccess = () => resolve(req.result || []);
       req.onerror = () => reject(req.error);
     });
-    return merged.sort((a, b) => (b.updatedAt || b.createdAt || 0) - (a.updatedAt || a.createdAt || 0));
+    return merged.sort((a, b) => (b.createdAt || b.updatedAt || 0) - (a.createdAt || a.updatedAt || 0));
   } catch {
     return [...SAMPLE_CARDS];
   }

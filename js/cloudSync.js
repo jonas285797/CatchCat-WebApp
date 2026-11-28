@@ -142,22 +142,49 @@ async function renderImageToResizedBase64(src, maxDim = 900, mime = 'image/png')
 }
 
 function blobToDataUrl(blob) {
+  if (!blob || blob.size < 64) return Promise.resolve(null);
+  const typedBlob = blob.type && blob.type.startsWith('image/')
+    ? blob
+    : new Blob([blob], { type: 'image/png' });
   return new Promise((resolve, reject) => {
     const r = new FileReader();
     r.onload = () => resolve(r.result);
     r.onerror = () => reject(r.error);
-    r.readAsDataURL(blob);
+    r.readAsDataURL(typedBlob);
   });
+}
+
+function canDecodeDataUrl(dataUrl) {
+  if (!dataUrl || typeof dataUrl !== 'string' || !dataUrl.startsWith('data:image/')) {
+    return Promise.resolve(false);
+  }
+  return new Promise((resolve) => {
+    const im = new Image();
+    im.onload = () => resolve((im.naturalWidth || im.width) > 4);
+    im.onerror = () => resolve(false);
+    im.src = dataUrl;
+  });
+}
+
+function normalizeOverlapKey(card) {
+  const title = String(card?.customNickname || card?.name || '').trim().toLowerCase();
+  const breed = String(card?.breedName || '').trim().toLowerCase();
+  const coat = String(card?.coatPattern || '').trim().toLowerCase();
+  const hp = Number(card?.hp || 0);
+  const tsBucket = Math.round(Number(card?.createdAt || 0) / 60000);
+  return `${title}|${breed}|${coat}|${hp}|${tsBucket}`;
 }
 
 export async function fetchCloudCardCutoutDataUrl(cardId) {
   const resp = await apiFetch(`card-image?cardId=${encodeURIComponent(cardId)}&kind=cutout`);
   if (!resp.ok) return null;
   const blob = await resp.blob();
-  return blobToDataUrl(blob);
+  const dataUrl = await blobToDataUrl(blob);
+  const valid = await canDecodeDataUrl(dataUrl);
+  return valid ? dataUrl : null;
 }
 
-export async function pushCardToCloud(card, { includeCutout = true } = {}) {
+export async function pushCardToCloud(card, { includeCutout = true, overrideId = null } = {}) {
   const sess = getCloudSession();
   if (!sess) return null;
 
@@ -167,9 +194,10 @@ export async function pushCardToCloud(card, { includeCutout = true } = {}) {
   }
 
   const cleanCard = { ...card };
+  if (overrideId) cleanCard.id = overrideId;
   delete cleanCard.cutoutSrc;
-  // Keep built-in preset asset path reference if present for cross-fallback
-  if (typeof card.cutoutSrc === 'string' && card.cutoutSrc.startsWith('assets/')) {
+  // 仅保留官方示例资源路径引用；用户卡牌必须上传真实 PNG 抠图，绝不用橘猫照片代替其它宠物
+  if (typeof card.cutoutSrc === 'string' && card.cutoutSrc.startsWith('assets/') && String(card.id).startsWith('sample-')) {
     cleanCard.assetPath = card.cutoutSrc;
   }
 
@@ -204,11 +232,11 @@ export async function deleteCardFromCloud(cardId) {
 }
 
 /**
- * 双向智能合并：
+ * 集合并集去重双向同步（iOS <-> 云端 <-> Web）：
  * 1. 先冲刷本地待删队列
- * 2. 拉取云端卡册（包含在 iOS App 或其它浏览器保存的卡片）
- * 3. 下载云端缺失或更新的透明抠图，合并入 IndexedDB
- * 4. 把本地独有的非默认示例卡增量上传至云端
+ * 2. 收集本端与云端全部卡牌，分别按 ID 与特征签名（overlapKey）识别完全重叠卡，重叠卡不重复生成
+ * 3. 本端缺失的云端卡（含真实 PNG 抠图）全量拉取合并；修复旧同步遗留的错图/空图
+ * 4. 云端缺失的本端卡（或云端缺少 PNG 的卡）全量上传补齐
  */
 export async function syncCardsBidirectional(localCards, upsertLocalCard) {
   const sess = getCloudSession();
@@ -235,52 +263,88 @@ export async function syncCardsBidirectional(localCards, upsertLocalCard) {
 
   const cloudCards = Array.isArray(data.cards) ? data.cards : [];
   const localById = new Map(localCards.map((c) => [c.id, c]));
+  const localByOverlap = new Map();
+  for (const c of localCards) {
+    const ok = normalizeOverlapKey(c);
+    if (!localByOverlap.has(ok)) localByOverlap.set(ok, c);
+  }
   const cloudById = new Map(cloudCards.map((c) => [c.id, c]));
+  const cloudByOverlap = new Map();
+  for (const rc of cloudCards) {
+    const ok = normalizeOverlapKey(rc);
+    if (!cloudByOverlap.has(ok)) cloudByOverlap.set(ok, rc);
+  }
 
   let downloaded = 0;
   let uploaded = 0;
+  let skipped = 0;
+  const touchedLocalIds = new Set();
 
-  // 1) Pull missing or newer cloud cards into local store
+  // 1) Pull missing, newer, or cutout-corrupted/missing cloud cards into local store
   for (const rc of cloudCards) {
-    const lc = localById.get(rc.id);
+    const lc = localById.get(rc.id) || localByOverlap.get(normalizeOverlapKey(rc));
     const cloudTime = Number(rc.updatedAt || rc.createdAt || 0);
     const localTime = Number(lc?.updatedAt || lc?.createdAt || 0);
+    const isPoisonedOrange = Boolean(
+      lc &&
+      !String(lc.id).startsWith('sample-') &&
+      lc.cutoutSrc === 'assets/cat-orange.png' &&
+      !String(lc.breedName || '').includes('橘')
+    );
 
-    if (!lc || cloudTime > localTime + 500 || !lc.cutoutSrc) {
-      let cutoutSrc = lc?.cutoutSrc || rc.assetPath || 'assets/cat-orange.png';
+    if (!lc || cloudTime > localTime + 500 || isPoisonedOrange || (rc.hasCutout && !lc?.cutoutSrc)) {
+      let cutoutSrc = isPoisonedOrange ? '' : (lc?.cutoutSrc || '');
+      if (!cutoutSrc && rc.assetPath && String(rc.id).startsWith('sample-')) {
+        cutoutSrc = rc.assetPath;
+      }
       if (rc.hasCutout) {
         const fetchedUrl = await fetchCloudCardCutoutDataUrl(rc.id).catch(() => null);
         if (fetchedUrl) cutoutSrc = fetchedUrl;
       }
+
       const mergedCard = {
         ...rc,
+        id: lc?.id && lc.id === rc.id ? rc.id : (lc?.id || rc.id),
         cutoutSrc,
-        cardBackStyle: rc.cardBackStyle || 'fullArtPet',
-        cardBackOrientation: rc.cardBackOrientation || 'auto',
-        showBackQRCode: rc.showBackQRCode !== false
+        cardBackStyle: rc.cardBackStyle || lc?.cardBackStyle || 'fullArtPet',
+        cardBackOrientation: rc.cardBackOrientation || lc?.cardBackOrientation || 'auto',
+        showBackQRCode: rc.showBackQRCode !== false,
+        createdAt: Number(rc.createdAt || lc?.createdAt || Date.now()),
+        updatedAt: Math.max(cloudTime, localTime)
       };
       await upsertLocalCard(mergedCard);
       localById.set(mergedCard.id, mergedCard);
+      touchedLocalIds.add(mergedCard.id);
       downloaded += 1;
+    } else if (lc) {
+      touchedLocalIds.add(lc.id);
     }
   }
 
-  // 2) Push local non-sample cards (or locally newer cards) to cloud
+  // 2) Push missing local cards OR repair cloud cards that still lack real PNG cutout
   for (const lc of localCards) {
-    const isSample = String(lc.id).startsWith('sample-');
-    const rc = cloudById.get(lc.id);
+    const isBuiltInSample = String(lc.id).startsWith('sample-') && lc.locationName === '抓宠大作战 示范馆';
+    const rc = cloudById.get(lc.id) || cloudByOverlap.get(normalizeOverlapKey(lc));
     const localTime = Number(lc.updatedAt || lc.createdAt || 0);
     const cloudTime = Number(rc?.updatedAt || rc?.createdAt || 0);
+    const hasLocalRealImage = Boolean(lc.cutoutSrc && (!lc.cutoutSrc.startsWith('assets/') || String(lc.id).startsWith('sample-')));
 
-    if ((!rc && !isSample) || (rc && localTime > cloudTime + 500)) {
-      await pushCardToCloud(lc, { includeCutout: !rc?.hasCutout || localTime > cloudTime + 500 });
+    if (isBuiltInSample && rc) continue;
+    if (!rc || localTime > cloudTime + 500 || (hasLocalRealImage && rc.hasCutout === false)) {
+      if (isBuiltInSample && !rc) continue;
+      await pushCardToCloud(lc, {
+        includeCutout: hasLocalRealImage && (!rc?.hasCutout || localTime > cloudTime + 500),
+        overrideId: rc?.id || null
+      });
       uploaded += 1;
+    } else if (rc && touchedLocalIds.has(lc.id)) {
+      skipped += 1;
     }
   }
 
   const finalList = Array.from(localById.values()).sort(
-    (a, b) => Number(b.updatedAt || b.createdAt || 0) - Number(a.updatedAt || a.createdAt || 0)
+    (a, b) => Number(b.createdAt || b.updatedAt || 0) - Number(a.createdAt || a.updatedAt || 0)
   );
-  return { cards: finalList, downloaded, uploaded, user: data.user || sess.user };
+  return { cards: finalList, downloaded, uploaded, skipped, user: data.user || sess.user };
 }
 

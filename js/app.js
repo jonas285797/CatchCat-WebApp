@@ -10,9 +10,14 @@ import {
   SAMPLE_CARDS,
   CAT_SNACKS,
   DOG_SNACKS,
+  PET_CATALOG_BREEDS,
+  CARD_RARITY_PRESETS,
   resolveAdaptiveFX,
-  inferPetMoodProfile
-} from './presets.js?v=20261128a';
+  inferPetMoodProfile,
+  computeCardRarity,
+  matchCatalogBreed,
+  resolveCardSpecies
+} from './presets.js?v=20261128b';
 import {
   loadImageCached,
   getEnergyConfig,
@@ -21,11 +26,11 @@ import {
   renderCardFrontToCanvas,
   renderCardBackToCanvas,
   exportCard4KBlob
-} from './cardRenderer.js?v=20261128a';
-import { WebCutoutEngine, preloadNeuralMatting } from './cutout.js?v=20261128a';
-import { getAISettings, saveAISettings, analyzePetSmart, analyzeCutoutMoodMetrics } from './ai.js?v=20261128a';
-import { loadAllCards, upsertCard, removeCard, getTrainerLevelInfo, grantTrainerXP } from './storage.js?v=20261128a';
-import { Card3DShowcase } from './showcase3d.js?v=20261128a';
+} from './cardRenderer.js?v=20261128b';
+import { WebCutoutEngine, preloadNeuralMatting } from './cutout.js?v=20261128b';
+import { getAISettings, saveAISettings, analyzePetSmart, analyzeCutoutMoodMetrics } from './ai.js?v=20261128b';
+import { loadAllCards, upsertCard, removeCard, getTrainerLevelInfo, grantTrainerXP } from './storage.js?v=20261128b';
+import { Card3DShowcase } from './showcase3d.js?v=20261128b';
 import {
   getCloudSession,
   registerCloudAccount,
@@ -34,7 +39,7 @@ import {
   pushCardToCloud,
   deleteCardFromCloud,
   syncCardsBidirectional
-} from './cloudSync.js?v=20261128a';
+} from './cloudSync.js?v=20261128b';
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
@@ -54,7 +59,15 @@ const state = {
   lastCardTapAt: 0,
   renderScheduled: false,
   dexSearch: '',
-  dexEnergy: 'all',
+  dexMode: 'cards',
+  dexDimension: 'rarity',
+  dexRarity: 'all',
+  dexBreed: 'all',
+  dexCoat: 'all',
+  dexFavOnly: false,
+  dexSort: 'newest',
+  catalogScope: 'all',
+  catalogEnergy: 'all',
   dexThumbCache: new Map(),
   pendingDeleteId: null,
   pendingDeleteTimer: null,
@@ -208,12 +221,33 @@ const dom = {
   zoomPills: $$('.dock-pill[data-zoom]'),
   lightPills: $$('.dock-pill[data-light]'),
 
-  // CardDex
+  // CardDex (iOS CatDexView 对齐)
   dexStatsLine: $('#dex-stats-line'),
   btnBackupExport: $('#btn-backup-export'),
   backupFileInput: $('#backup-file-input'),
+  dexRingArc: $('#dex-ring-arc'),
+  dexDashCount: $('#dex-dash-count'),
+  dexCatProg: $('#dex-cat-prog'),
+  dexDogProg: $('#dex-dog-prog'),
+  dexStatCrown: $('#dex-stat-crown'),
+  dexStatEpic: $('#dex-stat-epic'),
+  dexStatRare: $('#dex-stat-rare'),
+  btnDexCloudInline: $('#btn-dex-cloud-inline'),
+  dexCloudDot: $('#dex-cloud-dot'),
+  dexCloudStatusLine: $('#dex-cloud-status-line'),
+  dexCompletionPct: $('#dex-completion-pct'),
+  dexModeBar: $('#dex-mode-bar'),
+  dexModeCardsLabel: $('#dex-mode-cards-label'),
+  dexCardsToolbar: $('#dex-cards-toolbar'),
   dexSearch: $('#dex-search'),
-  dexEnergyFilter: $('#dex-energy-filter'),
+  btnDexFav: $('#btn-dex-fav'),
+  dexSortSelect: $('#dex-sort-select'),
+  dexDimensionBar: $('#dex-dimension-bar'),
+  dexSubfilterBar: $('#dex-subfilter-bar'),
+  dexCatalogWall: $('#dex-catalog-wall'),
+  dexCatalogScopeBar: $('#dex-catalog-scope-bar'),
+  dexCatalogEnergyBar: $('#dex-catalog-energy-bar'),
+  dexCatalogGrid: $('#dex-catalog-grid'),
   dexGrid: $('#dex-grid'),
 
   // Modals & Toast
@@ -582,21 +616,8 @@ function buildStaticPalettes() {
     dom.energyPills.appendChild(btn);
   });
 
-  dom.dexEnergyFilter.innerHTML = '';
-  const filterItems = [{ id: 'all', label: '全部属性' }, ...ENERGY_TYPES.map((e) => ({ id: e.id, label: `${e.emoji} ${e.label}` }))];
-  filterItems.forEach((f) => {
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = `energy-pill${f.id === 'all' ? ' is-active' : ''}`;
-    btn.dataset.energy = f.id;
-    btn.textContent = f.label;
-    btn.addEventListener('click', () => {
-      state.dexEnergy = f.id;
-      $$('.energy-pill', dom.dexEnergyFilter).forEach((el) => el.classList.toggle('is-active', el.dataset.energy === f.id));
-      renderDexGrid();
-    });
-    dom.dexEnergyFilter.appendChild(btn);
-  });
+  renderDexSubfilters();
+  renderCatalogFilters();
 
   // 7. Personality & Hobby Quick Chips + Cutout Breed Picks
   if (dom.personalityChips) {
@@ -950,18 +971,306 @@ async function syncShowcaseCard() {
   state.showcase.resize();
 }
 
-// ═══════════════════════ CARDDEX PERSISTENCE & GRID ═══════════════════════
-function updateDexBadgeCount() {
-  dom.dexCountDesktop.textContent = String(state.cards.length);
+// ═══════════════════════ CARDDEX PERSISTENCE, DASHBOARD & GRID ═══════════════════════
+function computeDexStats(cards = []) {
+  const catBreeds = PET_CATALOG_BREEDS.filter((b) => b.species === 'cat');
+  const dogBreeds = PET_CATALOG_BREEDS.filter((b) => b.species === 'dog');
+  const collectedCat = new Set();
+  const collectedDog = new Set();
+  let crown = 0;
+  let epic = 0;
+  let rare = 0;
+
+  for (const c of cards) {
+    const r = computeCardRarity(c);
+    if (r === 'crown') crown += 1;
+    else if (r === 'epic') epic += 1;
+    else if (r === 'rare') rare += 1;
+
+    const match = matchCatalogBreed(c);
+    if (match) {
+      if (match.species === 'dog') collectedDog.add(match.name);
+      else collectedCat.add(match.name);
+    }
+  }
+
+  const totalCatalog = PET_CATALOG_BREEDS.length;
+  const unlockedCount = collectedCat.size + collectedDog.size;
+  const pct = totalCatalog > 0 ? Math.min(100, Math.round((unlockedCount / totalCatalog) * 100)) : 0;
+
+  return {
+    catCount: collectedCat.size,
+    catTotal: catBreeds.length,
+    dogCount: collectedDog.size,
+    dogTotal: dogBreeds.length,
+    crown,
+    epic,
+    rare,
+    pct
+  };
+}
+
+function updateDexDashboard() {
+  const stats = computeDexStats(state.cards);
   const sess = getCloudSession();
-  const cloudHint = sess?.user?.displayName ? ` · 云端已同步（${sess.user.displayName}）` : ' · 点击「云同步」可与 iOS 账号互通';
-  dom.dexStatsLine.textContent = `已收录 ${state.cards.length} 张萌宠闪卡（宝可梦 63×88mm 实体规格）${cloudHint}`;
+  const signedIn = Boolean(sess?.user);
+  const circ = 201.06;
+
+  if (dom.dexRingArc) {
+    const offset = circ * (1 - stats.pct / 100);
+    dom.dexRingArc.style.strokeDashoffset = offset.toFixed(2);
+  }
+  if (dom.dexDashCount) dom.dexDashCount.textContent = String(state.cards.length);
+  if (dom.dexCatProg) dom.dexCatProg.textContent = `🐱 ${stats.catCount}/${stats.catTotal}`;
+  if (dom.dexDogProg) {
+    dom.dexDogProg.hidden = false;
+    dom.dexDogProg.textContent = `🐶 ${stats.dogCount}/${stats.dogTotal}`;
+  }
+  if (dom.dexStatCrown) dom.dexStatCrown.textContent = String(stats.crown);
+  if (dom.dexStatEpic) dom.dexStatEpic.textContent = String(stats.epic);
+  if (dom.dexStatRare) dom.dexStatRare.textContent = String(stats.rare);
+  if (dom.dexCompletionPct) dom.dexCompletionPct.textContent = `${stats.pct}%`;
+  if (dom.dexModeCardsLabel) dom.dexModeCardsLabel.textContent = `我的闪卡 (${state.cards.length})`;
+
+  if (dom.dexCloudDot) dom.dexCloudDot.classList.toggle('is-online', signedIn);
+  if (dom.dexCloudStatusLine) {
+    dom.dexCloudStatusLine.textContent = signedIn
+      ? `${sess.user.displayName} · iOS / Web 已互通`
+      : '登录云账号 · iOS / Web 双端互通';
+  }
+}
+
+function updateDexBadgeCount() {
+  if (dom.dexCountDesktop) dom.dexCountDesktop.textContent = String(state.cards.length);
+  const sess = getCloudSession();
+  const cloudHint = sess?.user?.displayName ? ` · 云端已互通（${sess.user.displayName}）` : ' · 点击「云同步」与 iOS 账号并集对齐';
+  if (dom.dexStatsLine) {
+    dom.dexStatsLine.textContent = `已收录 ${state.cards.length} 张萌宠闪卡（宝可梦 63×88mm）${cloudHint}`;
+  }
+  updateDexDashboard();
+}
+
+function syncDexModeUI() {
+  const isCatalog = state.dexMode === 'catalog';
+  if (dom.dexModeBar) {
+    $$('.dex-mode-btn', dom.dexModeBar).forEach((btn) => {
+      btn.classList.toggle('is-active', btn.dataset.dexMode === state.dexMode);
+    });
+  }
+  if (dom.dexCardsToolbar) dom.dexCardsToolbar.hidden = isCatalog;
+  if (dom.dexGrid) dom.dexGrid.hidden = isCatalog;
+  if (dom.dexCatalogWall) dom.dexCatalogWall.hidden = !isCatalog;
+}
+
+function sortDexCards(cards, sortKey = state.dexSort) {
+  const rarityRank = { crown: 4, epic: 3, rare: 2, uncommon: 1, common: 0 };
+  const compareNewest = (a, b) => {
+    const tA = Number(a.createdAt || a.updatedAt || 0);
+    const tB = Number(b.createdAt || b.updatedAt || 0);
+    if (tB !== tA) return tB - tA;
+    const uA = Number(a.updatedAt || 0);
+    const uB = Number(b.updatedAt || 0);
+    if (uB !== uA) return uB - uA;
+    return String(a.id || '').localeCompare(String(b.id || ''));
+  };
+
+  return [...cards].sort((a, b) => {
+    if (sortKey === 'rarity') {
+      const rDiff = (rarityRank[computeCardRarity(b)] || 0) - (rarityRank[computeCardRarity(a)] || 0);
+      if (rDiff !== 0) return rDiff;
+      const hpDiff = Number(b.hp || 0) - Number(a.hp || 0);
+      return hpDiff !== 0 ? hpDiff : compareNewest(a, b);
+    }
+    if (sortKey === 'hpDesc') {
+      const hpDiff = Number(b.hp || 0) - Number(a.hp || 0);
+      return hpDiff !== 0 ? hpDiff : compareNewest(a, b);
+    }
+    if (sortKey === 'encounters') {
+      const encDiff = Number(b.encounters || 1) - Number(a.encounters || 1);
+      return encDiff !== 0 ? encDiff : compareNewest(a, b);
+    }
+    return compareNewest(a, b);
+  });
+}
+
+function renderDexSubfilters() {
+  if (!dom.dexSubfilterBar) return;
+  dom.dexSubfilterBar.innerHTML = '';
+
+  let items = [];
+  let activeVal = 'all';
+
+  if (state.dexDimension === 'rarity') {
+    activeVal = state.dexRarity;
+    items = [
+      { id: 'all', label: '全部' },
+      ...CARD_RARITY_PRESETS.map((r) => ({ id: r.id, label: `${r.symbol} ${r.label}` }))
+    ];
+  } else if (state.dexDimension === 'breed') {
+    const counts = new Map();
+    for (const c of state.cards) {
+      const b = String(c.breedName || '').trim() || '混血田园喵';
+      counts.set(b, (counts.get(b) || 0) + 1);
+    }
+    const sorted = Array.from(counts.entries()).sort((a, b) => b[1] - a[1]);
+    if (state.dexBreed !== 'all' && !counts.has(state.dexBreed)) state.dexBreed = 'all';
+    activeVal = state.dexBreed;
+    items = [
+      { id: 'all', label: '全部品种' },
+      ...sorted.map(([name, n]) => ({ id: name, label: `${name} (${n})` }))
+    ];
+  } else {
+    const counts = new Map();
+    for (const c of state.cards) {
+      const coat = String(c.coatPattern || '').trim();
+      if (!coat) continue;
+      counts.set(coat, (counts.get(coat) || 0) + 1);
+    }
+    const sorted = Array.from(counts.entries()).sort((a, b) => b[1] - a[1]);
+    if (state.dexCoat !== 'all' && !counts.has(state.dexCoat)) state.dexCoat = 'all';
+    activeVal = state.dexCoat;
+    items = [
+      { id: 'all', label: '全部花色' },
+      ...sorted.map(([coat, n]) => ({ id: coat, label: `${coat} (${n})` }))
+    ];
+  }
+
+  for (const it of items) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = `dex-sub-pill${it.id === activeVal ? ' is-active' : ''}`;
+    btn.textContent = it.label;
+    btn.addEventListener('click', () => {
+      if (state.dexDimension === 'rarity') state.dexRarity = it.id;
+      else if (state.dexDimension === 'breed') state.dexBreed = it.id;
+      else state.dexCoat = it.id;
+      renderDexSubfilters();
+      renderDexGrid();
+    });
+    dom.dexSubfilterBar.appendChild(btn);
+  }
+}
+
+function renderCatalogFilters() {
+  if (dom.dexCatalogScopeBar) {
+    dom.dexCatalogScopeBar.innerHTML = '';
+    const catN = PET_CATALOG_BREEDS.filter((b) => b.species === 'cat').length;
+    const dogN = PET_CATALOG_BREEDS.filter((b) => b.species === 'dog').length;
+    const scopes = [
+      { id: 'all', label: `全部 (${PET_CATALOG_BREEDS.length})` },
+      { id: 'cat', label: `🐱 猫咪 (${catN})` },
+      { id: 'dog', label: `🐶 狗狗 (${dogN})` }
+    ];
+    for (const s of scopes) {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = `dex-sub-pill${s.id === state.catalogScope ? ' is-active' : ''}`;
+      btn.textContent = s.label;
+      btn.addEventListener('click', () => {
+        state.catalogScope = s.id;
+        renderCatalogFilters();
+        renderBreedCatalogWall();
+      });
+      dom.dexCatalogScopeBar.appendChild(btn);
+    }
+  }
+
+  if (dom.dexCatalogEnergyBar) {
+    dom.dexCatalogEnergyBar.innerHTML = '';
+    const energies = [
+      { id: 'all', label: '全部属性' },
+      ...ENERGY_TYPES.map((e) => ({ id: e.id, label: `${e.emoji} ${e.label}` }))
+    ];
+    for (const e of energies) {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = `dex-sub-pill${e.id === state.catalogEnergy ? ' is-active' : ''}`;
+      btn.textContent = e.label;
+      btn.addEventListener('click', () => {
+        state.catalogEnergy = e.id;
+        renderCatalogFilters();
+        renderBreedCatalogWall();
+      });
+      dom.dexCatalogEnergyBar.appendChild(btn);
+    }
+  }
+}
+
+function renderBreedCatalogWall() {
+  if (!dom.dexCatalogGrid) return;
+  renderCatalogFilters();
+
+  const byBreed = new Map();
+  for (const c of state.cards) {
+    const match = matchCatalogBreed(c);
+    if (!match) continue;
+    if (!byBreed.has(match.name)) byBreed.set(match.name, []);
+    byBreed.get(match.name).push(c);
+  }
+
+  const breeds = PET_CATALOG_BREEDS.filter((b) => {
+    if (state.catalogScope !== 'all' && b.species !== state.catalogScope) return false;
+    if (state.catalogEnergy !== 'all' && b.energy !== state.catalogEnergy) return false;
+    return true;
+  });
+
+  dom.dexCatalogGrid.innerHTML = '';
+  for (const b of breeds) {
+    const matched = byBreed.get(b.name) || [];
+    const unlocked = matched.length > 0;
+    const cell = document.createElement('button');
+    cell.type = 'button';
+    cell.className = `dex-catalog-cell${unlocked ? '' : ' is-locked'}`;
+
+    const repCard = matched.find((c) => c.cutoutSrc) || matched[0];
+    if (unlocked && repCard?.cutoutSrc) {
+      const img = document.createElement('img');
+      img.alt = b.name;
+      img.src = repCard.cutoutSrc;
+      cell.appendChild(img);
+    } else {
+      const ph = document.createElement('div');
+      ph.style.cssText = 'width:58px;height:58px;display:grid;place-items:center;font-size:26px;opacity:0.65;';
+      ph.textContent = b.species === 'dog' ? '🐶' : '🐱';
+      cell.appendChild(ph);
+    }
+
+    const title = document.createElement('strong');
+    title.textContent = b.shortName || b.name;
+    const sub = document.createElement('span');
+    sub.textContent = unlocked ? `已集 ${matched.length} 张 · ${b.coat}` : `${b.coat} · 待捕捉`;
+    cell.appendChild(title);
+    cell.appendChild(sub);
+
+    cell.addEventListener('click', () => {
+      if (unlocked) {
+        if (matched.length === 1) {
+          openCardInspectModal(matched[0].id);
+        } else {
+          state.dexMode = 'cards';
+          state.dexDimension = 'breed';
+          state.dexBreed = repCard.breedName || b.name;
+          $$('.dex-dim-pill', dom.dexDimensionBar).forEach((el) => {
+            el.classList.toggle('is-active', el.dataset.dim === 'breed');
+          });
+          renderDexGrid();
+        }
+      } else {
+        showToast(`去抓拍或上传「${b.name}」照片即可解锁该品种图鉴！`);
+      }
+    });
+
+    dom.dexCatalogGrid.appendChild(cell);
+  }
 }
 
 async function getCardThumbDataUrl(card) {
+  const cutoutSig = card.cutoutSrc
+    ? `${card.cutoutSrc.slice(0, 32)}:${card.cutoutSrc.length}:${card.cutoutSrc.slice(-36)}`
+    : 'none';
   const fp = [
     card.id,
-    card.cutoutSrc?.slice(-36),
+    cutoutSig,
     card.borderStyle,
     card.backgroundStyle,
     card.petMood || 'auto',
@@ -996,26 +1305,45 @@ async function getCardThumbDataUrl(card) {
 }
 
 async function renderDexGrid() {
+  updateDexBadgeCount();
+  syncDexModeUI();
+  renderDexSubfilters();
+
+  if (state.dexMode === 'catalog') {
+    renderBreedCatalogWall();
+    return;
+  }
+
   const q = state.dexSearch.trim().toLowerCase();
   const filtered = state.cards.filter((card) => {
-    if (state.dexEnergy !== 'all' && card.energyType !== state.dexEnergy) return false;
+    if (state.dexFavOnly && !card.isFavorite) return false;
+
+    if (state.dexDimension === 'rarity' && state.dexRarity !== 'all') {
+      if (computeCardRarity(card) !== state.dexRarity) return false;
+    } else if (state.dexDimension === 'breed' && state.dexBreed !== 'all') {
+      const b = String(card.breedName || '').trim() || '混血田园喵';
+      if (b !== state.dexBreed) return false;
+    } else if (state.dexDimension === 'coat' && state.dexCoat !== 'all') {
+      if (String(card.coatPattern || '').trim() !== state.dexCoat) return false;
+    }
+
     if (!q) return true;
-    const hay = `${card.name || ''} ${card.customNickname || ''} ${card.breedName || ''} ${card.coatPattern || ''} ${card.personalityTag || ''} ${card.hobbyTag || ''} ${card.attackName || ''}`.toLowerCase();
+    const hay = `${card.name || ''} ${card.customNickname || ''} ${card.breedName || ''} ${card.coatPattern || ''} ${card.locationName || ''} ${card.personalityTag || ''} ${card.hobbyTag || ''} ${card.attackName || ''}`.toLowerCase();
     return hay.includes(q);
   });
 
-  updateDexBadgeCount();
+  const ordered = sortDexCards(filtered, state.dexSort);
   dom.dexGrid.innerHTML = '';
 
-  if (filtered.length === 0) {
+  if (ordered.length === 0) {
     const empty = document.createElement('div');
     empty.style.cssText = 'grid-column: 1 / -1; text-align:center; padding: 36px 16px; color: var(--ink-3); border: 1px dashed var(--border); border-radius: var(--r-md);';
-    empty.innerHTML = '<strong style="display:block;color:var(--ink-1);margin-bottom:6px;">萌宠图鉴里还没有匹配卡片</strong><span style="font-size:12.5px;">换个关键词试试，或去「抓拍萌宠 / 制卡工坊」新铸一张闪卡存入图鉴。</span>';
+    empty.innerHTML = '<strong style="display:block;color:var(--ink-1);margin-bottom:6px;">萌宠图鉴里还没有匹配卡片</strong><span style="font-size:12.5px;">换个筛选或关键词试试，或去「抓拍萌宠 / 制卡工坊」新铸一张闪卡存入图鉴。</span>';
     dom.dexGrid.appendChild(empty);
     return;
   }
 
-  for (const card of filtered) {
+  for (const card of ordered) {
     const item = document.createElement('article');
     item.className = 'dex-card';
 
@@ -1024,7 +1352,7 @@ async function renderDexGrid() {
     thumb.className = 'dex-card__thumb';
     const img = document.createElement('img');
     img.alt = getCardDisplayTitle(card);
-    img.src = card.cutoutSrc || 'assets/app-icon.png';
+    if (card.cutoutSrc) img.src = card.cutoutSrc;
     thumb.appendChild(img);
 
     if (card.isFavorite) {
@@ -1276,10 +1604,12 @@ async function runCloudSync({ silent = false } = {}) {
   try {
     const res = await syncCardsBidirectional(state.cards, upsertCard);
     state.cards = res.cards;
+    state.dexThumbCache.clear();
     refreshCloudSessionUI();
     await renderDexGrid();
     if (!silent) {
-      showToast(`云端同步完成 · 拉取 ${res.downloaded} 张 · 上传 ${res.uploaded} 张`);
+      const skippedText = res.skipped ? ` · 重叠跳过 ${res.skipped} 张` : '';
+      showToast(`并集同步完成 · 拉取 ${res.downloaded} 张 · 上传 ${res.uploaded} 张${skippedText}`);
     }
   } catch (err) {
     refreshCloudSessionUI();
@@ -1673,10 +2003,48 @@ function bindEvents() {
     state.showcase?.setSlabVisible(next);
   });
 
-  // CardDex Search & Backup
+  // CardDex Search, Filter, Mode Switch, Sort & Backup
   dom.dexSearch.addEventListener('input', () => {
     state.dexSearch = dom.dexSearch.value;
     renderDexGrid();
+  });
+  dom.btnDexFav?.addEventListener('click', () => {
+    state.dexFavOnly = !state.dexFavOnly;
+    dom.btnDexFav.classList.toggle('is-active', state.dexFavOnly);
+    dom.btnDexFav.setAttribute('aria-pressed', state.dexFavOnly ? 'true' : 'false');
+    dom.btnDexFav.textContent = state.dexFavOnly ? '♥ 仅收藏' : '♡ 收藏';
+    renderDexGrid();
+  });
+  dom.dexSortSelect?.addEventListener('change', () => {
+    state.dexSort = dom.dexSortSelect.value || 'newest';
+    renderDexGrid();
+  });
+  if (dom.dexModeBar) {
+    $$('.dex-mode-btn', dom.dexModeBar).forEach((btn) => {
+      btn.addEventListener('click', () => {
+        state.dexMode = btn.dataset.dexMode === 'catalog' ? 'catalog' : 'cards';
+        renderDexGrid();
+      });
+    });
+  }
+  if (dom.dexDimensionBar) {
+    $$('.dex-dim-pill', dom.dexDimensionBar).forEach((btn) => {
+      btn.addEventListener('click', () => {
+        state.dexDimension = btn.dataset.dim || 'rarity';
+        $$('.dex-dim-pill', dom.dexDimensionBar).forEach((el) => {
+          el.classList.toggle('is-active', el.dataset.dim === state.dexDimension);
+        });
+        renderDexGrid();
+      });
+    });
+  }
+  dom.btnDexCloudInline?.addEventListener('click', () => {
+    if (getCloudSession()) {
+      openAuthModal();
+      runCloudSync({ silent: false });
+    } else {
+      openAuthModal();
+    }
   });
   dom.btnBackupExport.addEventListener('click', () => {
     const payload = JSON.stringify({ exportedAt: new Date().toISOString(), app: 'CatchCat-WebApp', cards: state.cards }, null, 2);

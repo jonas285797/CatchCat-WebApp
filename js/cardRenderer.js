@@ -6,9 +6,9 @@ import {
   BADGE_PRESETS,
   resolveAdaptiveFX,
   resolveSmartBackgroundForPet
-} from './presets.js?v=20261128a';
-import { drawQRToCanvas } from './qr.js?v=20261128a';
-import { analyzeCutoutMoodMetrics } from './ai.js?v=20261128a';
+} from './presets.js?v=20261128b';
+import { drawQRToCanvas } from './qr.js?v=20261128b';
+import { analyzeCutoutMoodMetrics } from './ai.js?v=20261128b';
 
 export const CARD_MM_W = 63;
 export const CARD_MM_H = 88;
@@ -1320,9 +1320,10 @@ export function renderCardFrontToCanvas(canvas, card, cutoutImg, scale = 2) {
   roundPath(ctx, plate.x, plate.y, plate.w, plate.h, plate.r);
   ctx.clip();
 
-  if (cutoutImg && cutoutImg.naturalWidth > 0 && cutoutImg.naturalHeight > 0) {
-    const iw = cutoutImg.naturalWidth;
-    const ih = cutoutImg.naturalHeight;
+  const hasFrontCutout = cutoutImg && (cutoutImg.naturalWidth || cutoutImg.width) > 0 && (cutoutImg.naturalHeight || cutoutImg.height) > 0;
+  if (hasFrontCutout) {
+    const iw = cutoutImg.naturalWidth || cutoutImg.width;
+    const ih = cutoutImg.naturalHeight || cutoutImg.height;
     const aspect = iw / Math.max(1, ih);
     const maxPopW = artRect.w * 1.04;
     let baseW;
@@ -1358,8 +1359,15 @@ export function renderCardFrontToCanvas(canvas, card, cutoutImg, scale = 2) {
     ctx.drawImage(cutoutImg, dx, dy, drawW, drawH);
     ctx.restore();
   } else {
-    ctx.fillStyle = 'rgba(255,255,255,0.22)';
-    drawBadgeVector(ctx, 'paw', artRect.x + artRect.w * 0.5, artRect.y + artRect.h * 0.52, 34, 'rgba(255,255,255,0.34)');
+    ctx.save();
+    ctx.fillStyle = 'rgba(255,255,255,0.28)';
+    drawBadgeVector(ctx, 'paw', artRect.x + artRect.w * 0.5, artRect.y + artRect.h * 0.45, 36, 'rgba(255,255,255,0.62)');
+    ctx.fillStyle = 'rgba(255,255,255,0.78)';
+    ctx.font = `700 9px ${FONT_STACK}`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(card.breedName || '等待同步萌宠抠图', artRect.x + artRect.w * 0.5, artRect.y + artRect.h * 0.68);
+    ctx.restore();
   }
   ctx.restore();
 
