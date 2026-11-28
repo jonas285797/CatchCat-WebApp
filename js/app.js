@@ -10,18 +10,22 @@ import {
   SAMPLE_CARDS,
   CAT_SNACKS,
   DOG_SNACKS,
+  PET_SPECIES_PRESETS,
   PET_CATALOG_BREEDS,
   CARD_RARITY_PRESETS,
   resolveAdaptiveFX,
   inferPetMoodProfile,
   computeCardRarity,
   matchCatalogBreed,
-  resolveCardSpecies
+  resolveCardSpecies,
+  sanitizeStreetLocation,
+  formatCardGeneratedTime
 } from './presets.js?v=20261128b';
 import {
   loadImageCached,
   getEnergyConfig,
   getCardDisplayTitle,
+  isLandscapeBackCard,
   resolveEffectiveBgId,
   renderCardFrontToCanvas,
   renderCardBackToCanvas,
@@ -56,14 +60,18 @@ const state = {
   activeTab: 'capture',
   activeAxis: 'border',
   isFlipped: false,
-  lastCardTapAt: 0,
+  cardPointerDownPos: null,
+  inspectPointerDownPos: null,
+  locationConsent: (() => {
+    try { return localStorage.getItem('CatchPet_LocationConsent_v1') || 'unasked'; } catch { return 'unasked'; }
+  })(),
   renderScheduled: false,
   dexSearch: '',
   dexMode: 'cards',
   dexDimension: 'rarity',
   dexRarity: 'all',
+  dexSpecies: 'all',
   dexBreed: 'all',
-  dexCoat: 'all',
   dexFavOnly: false,
   dexSort: 'newest',
   catalogScope: 'all',
@@ -142,6 +150,11 @@ const dom = {
   // Studio
   studioBadge: $('#studio-card-badge'),
   studioHint: $('#studio-interaction-hint'),
+  stageHeroRow: $('.stage-hero-row'),
+  btnFaceFront: $('#btn-face-front'),
+  btnFaceBack: $('#btn-face-back'),
+  btnToggleLandscape: $('#btn-toggle-landscape'),
+  studioFaceHint: $('#studio-face-hint'),
   btnRandomize: $('#btn-randomize'),
   btnRandomizeIos: $('#btn-randomize-ios'),
   btnToggleSources: $('#btn-toggle-sources'),
@@ -195,6 +208,11 @@ const dom = {
   studioBackStyleBtns: $$('#studio-back-style button[data-back-style]'),
   studioBackOrientBtns: $$('#studio-back-orientation button[data-back-orient]'),
   chkBackQr: $('#chk-back-qr'),
+  studioGeneratedTime: $('#studio-generated-time'),
+  chkLocationEnabled: $('#chk-location-enabled'),
+  studioLocationRow: $('#studio-location-row'),
+  inputCardLocation: $('#input-card-location'),
+  btnRequestStreetLoc: $('#btn-request-street-loc'),
 
   adaptiveTitle: $('#adaptive-zone-title'),
   adaptiveHint: $('#adaptive-zone-hint'),
@@ -244,6 +262,7 @@ const dom = {
   dexSortSelect: $('#dex-sort-select'),
   dexDimensionBar: $('#dex-dimension-bar'),
   dexSubfilterBar: $('#dex-subfilter-bar'),
+  dexBreedSubfilterBar: $('#dex-breed-subfilter-bar'),
   dexCatalogWall: $('#dex-catalog-wall'),
   dexCatalogScopeBar: $('#dex-catalog-scope-bar'),
   dexCatalogEnergyBar: $('#dex-catalog-energy-bar'),
@@ -315,6 +334,7 @@ const dom = {
   editCardAtk: $('#edit-card-atk'),
   editCardHp: $('#edit-card-hp'),
   editCardFlavor: $('#edit-card-flavor'),
+  editLocationEnabled: $('#edit-location-enabled'),
   editCardLocation: $('#edit-card-location'),
   editCardSerial: $('#edit-card-serial'),
   editBackStyle: $('#edit-back-style'),
@@ -376,10 +396,89 @@ function scheduleStudioRender() {
   });
 }
 
+function syncStudioLandscapeUI() {
+  const isLand = state.isFlipped && isLandscapeBackCard(state.currentCard, state.activeCutoutImg);
+  dom.stageHeroRow?.classList.toggle('is-landscape-back', isLand);
+  if (dom.btnToggleLandscape) {
+    dom.btnToggleLandscape.hidden = !state.isFlipped;
+    dom.btnToggleLandscape.classList.toggle('is-active', isLand);
+    dom.btnToggleLandscape.textContent = isLand ? '↺ 切回竖版' : '↔ 卡片横置';
+  }
+}
+
+function setStudioFlipped(nextFlipped) {
+  state.isFlipped = Boolean(nextFlipped);
+  dom.cardFlipper.classList.toggle('is-flipped', state.isFlipped);
+  dom.cardTilt.style.transform = '';
+  if (state.activeAxis === 'framing') {
+    dom.studioHint.textContent = state.isFlipped
+      ? '正在调整背面大图：直接拖动位置 · 滚轮缩放'
+      : '正在调整正面主子：直接拖动位置 · 滚轮缩放';
+  } else {
+    dom.studioHint.textContent = '轻点卡面即可翻面 · 滑过可 3D 摆动';
+  }
+  syncStudioLandscapeUI();
+  syncControlsFromCurrentCard();
+  renderStudioNow();
+}
+
+async function requestStreetLocation(targetCard, { forceAsk = false } = {}) {
+  if (!targetCard) return;
+  if (state.locationConsent === 'unasked' || forceAsk) {
+    const ok = window.confirm(
+      '是否开启街区位置记录？\n系统仅精确到城市/街道，绝不记录门牌号、楼栋或精确坐标，以保护宠物安全。'
+    );
+    state.locationConsent = ok ? 'granted' : 'denied';
+    try { localStorage.setItem('CatchPet_LocationConsent_v1', state.locationConsent); } catch {}
+    if (!ok) {
+      targetCard.locationEnabled = false;
+      targetCard.locationName = '保密街区';
+      syncControlsFromCurrentCard();
+      scheduleStudioRender();
+      showToast('已开启街区隐私保护，卡片不记录位置');
+      return;
+    }
+  }
+  if (state.locationConsent === 'denied') {
+    targetCard.locationEnabled = false;
+    syncControlsFromCurrentCard();
+    scheduleStudioRender();
+    return;
+  }
+
+  targetCard.locationEnabled = true;
+  showToast('正在获取街道级模糊定位…', 1800);
+  let rawLoc = '';
+  try {
+    const res = await fetch('https://ipwho.is/?lang=zh-CN');
+    if (res.ok) {
+      const data = await res.json();
+      if (data && data.success !== false) {
+        rawLoc = [data.city, data.region].filter(Boolean).join(' · ');
+      }
+    }
+  } catch {}
+  if (!rawLoc) {
+    try {
+      const res = await fetch('https://get.geojs.io/v1/ip/geo.json');
+      if (res.ok) {
+        const data = await res.json();
+        rawLoc = [data.city, data.region].filter(Boolean).join(' · ');
+      }
+    } catch {}
+  }
+  const safeLoc = sanitizeStreetLocation(rawLoc || targetCard.locationName || '所在街区');
+  targetCard.locationName = safeLoc;
+  syncControlsFromCurrentCard();
+  scheduleStudioRender();
+  showToast(`已记录街区位置（已脱敏）：${safeLoc}`);
+}
+
 function renderStudioNow() {
   const card = state.currentCard;
   renderCardFrontToCanvas(dom.canvasFront, card, state.activeCutoutImg, 2);
-  renderCardBackToCanvas(dom.canvasBack, card, state.activeCutoutImg, 2, state.inspectEmblemImg || null);
+  renderCardBackToCanvas(dom.canvasBack, card, state.activeCutoutImg, 2, state.inspectEmblemImg || null, { presentUpright: true });
+  syncStudioLandscapeUI();
 
   dom.studioBadge.textContent = getCardDisplayTitle(card);
   const adaptive = resolveAdaptiveFX(card);
@@ -393,33 +492,45 @@ function renderStudioNow() {
 
 function syncControlsFromCurrentCard() {
   const card = state.currentCard;
+  const isBack = state.isFlipped;
   dom.studioBadge.textContent = getCardDisplayTitle(card);
+
+  // Face bar active state
+  dom.btnFaceFront?.classList.toggle('is-active', !isBack);
+  dom.btnFaceBack?.classList.toggle('is-active', isBack);
+  if (dom.studioFaceHint) {
+    dom.studioFaceHint.textContent = isBack
+      ? '当前编辑：背面（边框/背景/特效/宠位独立）'
+      : '当前编辑：正面（正反面风格完全独立）';
+  }
 
   // Sample pills active state
   $$('.sample-pill', dom.sampleStrip).forEach((el) => {
     el.classList.toggle('is-active', el.dataset.src === card.cutoutSrc);
   });
 
-  // Border swatches
+  // Border swatches (independent per face)
+  const borderId = isBack ? (card.backBorderStyle || 'auto') : (card.borderStyle || 'auto');
   $$('.swatch-card', dom.borderGrid).forEach((el) => {
-    el.classList.toggle('is-active', el.dataset.id === (card.borderStyle || 'auto'));
+    el.classList.toggle('is-active', el.dataset.id === borderId);
   });
-  const activeBorder = BORDER_PRESETS.find((b) => b.id === (card.borderStyle || 'auto')) || BORDER_PRESETS[0];
-  dom.borderLabel.textContent = activeBorder.name;
+  const activeBorder = BORDER_PRESETS.find((b) => b.id === borderId) || BORDER_PRESETS[0];
+  dom.borderLabel.textContent = `${isBack ? '背面 · ' : ''}${activeBorder.name}`;
 
-  // Background swatches & smart mood alignment
+  // Background swatches & smart mood alignment (independent per face)
+  const bgId = isBack ? (card.backBackgroundStyle || 'auto') : (card.backgroundStyle || 'auto');
   $$('.swatch-card', dom.bgGrid).forEach((el) => {
-    el.classList.toggle('is-active', el.dataset.id === (card.backgroundStyle || 'auto'));
+    el.classList.toggle('is-active', el.dataset.id === bgId);
   });
   const metrics = state.activeCutoutImg ? analyzeCutoutMoodMetrics(state.activeCutoutImg) : null;
-  const resolvedBgId = resolveEffectiveBgId(card, state.activeCutoutImg);
+  const resolvedBgId = resolveEffectiveBgId(card, state.activeCutoutImg, { forBack: isBack });
   const resolvedBg = BACKGROUND_PRESETS.find((b) => b.id === resolvedBgId) || BACKGROUND_PRESETS[1];
-  const activeBg = BACKGROUND_PRESETS.find((b) => b.id === (card.backgroundStyle || 'auto')) || BACKGROUND_PRESETS[0];
-  const isAutoBg = !card.backgroundStyle || card.backgroundStyle === 'auto';
-  dom.bgLabel.textContent = isAutoBg ? `智能 → ${resolvedBg.name}` : activeBg.name;
+  const activeBg = BACKGROUND_PRESETS.find((b) => b.id === bgId) || BACKGROUND_PRESETS[0];
+  const isAutoBg = !bgId || bgId === 'auto';
+  dom.bgLabel.textContent = `${isBack ? '背面 · ' : ''}${isAutoBg ? `智能 → ${resolvedBg.name}` : activeBg.name}`;
 
   const moodInfo = inferPetMoodProfile(card, metrics);
-  const selectedMood = card.petMood || 'auto';
+  const selectedMood = isBack ? (card.backPetMood || 'auto') : (card.petMood || 'auto');
   dom.petMoodBtns?.forEach((btn) => {
     btn.classList.toggle('is-active', btn.dataset.mood === selectedMood);
   });
@@ -427,28 +538,31 @@ function syncControlsFromCurrentCard() {
     dom.moodMatchHint.textContent = `${moodInfo.label} · ${resolvedBg.name}`;
   }
 
-  // FX swatches & foil slider
-  const foil = Number(card.foilIntensity ?? 0.72);
+  // FX swatches & foil slider (independent per face)
+  const foil = Number(isBack ? (card.backFoilIntensity ?? card.foilIntensity ?? 0.72) : (card.foilIntensity ?? 0.72));
   dom.foilSlider.value = String(foil);
   dom.foilVal.textContent = `${Math.round(foil * 100)}%`;
 
+  const fxId = isBack ? (card.backFXPreset || 'auto') : (card.fxPreset || 'auto');
   $$('.swatch-card', dom.fxGrid).forEach((el) => {
-    el.classList.toggle('is-active', el.dataset.id === (card.fxPreset || 'auto'));
+    el.classList.toggle('is-active', el.dataset.id === fxId);
   });
-  const activeFx = FX_PRESETS.find((f) => f.id === (card.fxPreset || 'auto')) || FX_PRESETS[0];
-  dom.fxLabel.textContent = activeFx.name;
+  const activeFx = FX_PRESETS.find((f) => f.id === fxId) || FX_PRESETS[0];
+  dom.fxLabel.textContent = `${isBack ? '背面 · ' : ''}${activeFx.name}`;
 
   if (dom.studioComboSummary) {
     dom.studioComboSummary.innerHTML = `
+      <span>${isBack ? '背面' : '正面'}</span>
       <span>${activeBorder.name}</span>
       <span>${isAutoBg ? resolvedBg.name : activeBg.name}</span>
       <span>${activeFx.name}</span>
     `;
   }
 
-  // Badge tiles & metadata inputs
+  // Badge tiles & metadata inputs (badge independent per face)
+  const badgeId = isBack ? (card.backBadgeIcon || 'auto') : (card.badgeIcon || 'auto');
   $$('.icon-tile', dom.badgeGrid).forEach((el) => {
-    el.classList.toggle('is-active', el.dataset.id === (card.badgeIcon || 'auto'));
+    el.classList.toggle('is-active', el.dataset.id === badgeId);
   });
 
   dom.inputName.value = card.customNickname || card.name || '';
@@ -487,11 +601,18 @@ function syncControlsFromCurrentCard() {
   if (dom.chkBackQr) {
     dom.chkBackQr.checked = card.showBackQRCode !== false;
   }
+  if (dom.studioGeneratedTime) {
+    dom.studioGeneratedTime.textContent = formatCardGeneratedTime(card.createdAt);
+  }
+  const locOn = card.locationEnabled === true;
+  if (dom.chkLocationEnabled) dom.chkLocationEnabled.checked = locOn;
+  if (dom.studioLocationRow) dom.studioLocationRow.hidden = !locOn;
+  if (dom.inputCardLocation) dom.inputCardLocation.value = locOn ? sanitizeStreetLocation(card.locationName) : '';
 
-  // Framing sliders
-  const ox = Number(card.subjectOffsetX || 0);
-  const oy = Number(card.subjectOffsetY || 0);
-  const sc = Number(card.subjectScale || 1);
+  // Framing sliders (independent per face)
+  const ox = Number(isBack ? (card.backSubjectOffsetX || 0) : (card.subjectOffsetX || 0));
+  const oy = Number(isBack ? (card.backSubjectOffsetY || 0) : (card.subjectOffsetY || 0));
+  const sc = Number(isBack ? (card.backSubjectScale || 1) : (card.subjectScale || 1));
   dom.sliderOx.value = String(ox);
   dom.oxVal.textContent = `${Math.round(ox * 100)}%`;
   dom.sliderOy.value = String(oy);
@@ -520,7 +641,8 @@ function buildStaticPalettes() {
       </span>
     `;
     btn.addEventListener('click', () => {
-      state.currentCard.borderStyle = item.id;
+      if (state.isFlipped) state.currentCard.backBorderStyle = item.id;
+      else state.currentCard.borderStyle = item.id;
       syncControlsFromCurrentCard();
       scheduleStudioRender();
     });
@@ -543,7 +665,8 @@ function buildStaticPalettes() {
       </span>
     `;
     btn.addEventListener('click', () => {
-      state.currentCard.backgroundStyle = item.id;
+      if (state.isFlipped) state.currentCard.backBackgroundStyle = item.id;
+      else state.currentCard.backgroundStyle = item.id;
       syncControlsFromCurrentCard();
       scheduleStudioRender();
     });
@@ -552,8 +675,14 @@ function buildStaticPalettes() {
 
   dom.petMoodBtns?.forEach((btn) => {
     btn.addEventListener('click', () => {
-      state.currentCard.petMood = btn.dataset.mood || 'auto';
-      state.currentCard.backgroundStyle = 'auto';
+      const mood = btn.dataset.mood || 'auto';
+      if (state.isFlipped) {
+        state.currentCard.backPetMood = mood;
+        state.currentCard.backBackgroundStyle = 'auto';
+      } else {
+        state.currentCard.petMood = mood;
+        state.currentCard.backgroundStyle = 'auto';
+      }
       syncControlsFromCurrentCard();
       scheduleStudioRender();
     });
@@ -574,7 +703,8 @@ function buildStaticPalettes() {
       </span>
     `;
     btn.addEventListener('click', () => {
-      state.currentCard.fxPreset = item.id;
+      if (state.isFlipped) state.currentCard.backFXPreset = item.id;
+      else state.currentCard.fxPreset = item.id;
       syncControlsFromCurrentCard();
       scheduleStudioRender();
     });
@@ -593,7 +723,8 @@ function buildStaticPalettes() {
       <span>${item.name}</span>
     `;
     btn.addEventListener('click', () => {
-      state.currentCard.badgeIcon = item.id;
+      if (state.isFlipped) state.currentCard.backBadgeIcon = item.id;
+      else state.currentCard.badgeIcon = item.id;
       syncControlsFromCurrentCard();
       scheduleStudioRender();
     });
@@ -935,11 +1066,11 @@ function switchAxis(axis) {
   dom.framingGuide.hidden = !isFraming;
   if (isFraming) {
     dom.cardTilt.style.transform = '';
-    state.isFlipped = false;
-    dom.cardFlipper.classList.remove('is-flipped');
-    dom.studioHint.textContent = '直接在卡面上拖动调整位置 · 滚轮放大缩小';
+    dom.studioHint.textContent = state.isFlipped
+      ? '正在调整背面大图：直接拖动位置 · 滚轮缩放'
+      : '正在调整正面主子：直接拖动位置 · 滚轮缩放';
   } else {
-    dom.studioHint.textContent = '滑过/按住卡面可 3D 摆动 · 双击翻背';
+    dom.studioHint.textContent = '轻点卡面即可翻面 · 滑过可 3D 摆动';
   }
 }
 
@@ -1097,69 +1228,96 @@ function renderDexSubfilters() {
   if (!dom.dexSubfilterBar) return;
   dom.dexSubfilterBar.innerHTML = '';
 
-  let items = [];
-  let activeVal = 'all';
-
   if (state.dexDimension === 'rarity') {
-    activeVal = state.dexRarity;
-    items = [
-      { id: 'all', label: '全部' },
+    if (dom.dexBreedSubfilterBar) {
+      dom.dexBreedSubfilterBar.hidden = true;
+      dom.dexBreedSubfilterBar.innerHTML = '';
+    }
+    const items = [
+      { id: 'all', label: '全部品阶' },
       ...CARD_RARITY_PRESETS.map((r) => ({ id: r.id, label: `${r.symbol} ${r.label}` }))
     ];
-  } else if (state.dexDimension === 'breed') {
-    const counts = new Map();
-    for (const c of state.cards) {
-      const b = String(c.breedName || '').trim() || '混血田园喵';
-      counts.set(b, (counts.get(b) || 0) + 1);
+    for (const it of items) {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = `dex-sub-pill${it.id === state.dexRarity ? ' is-active' : ''}`;
+      btn.textContent = it.label;
+      btn.addEventListener('click', () => {
+        state.dexRarity = it.id;
+        renderDexSubfilters();
+        renderDexGrid();
+      });
+      dom.dexSubfilterBar.appendChild(btn);
     }
-    const sorted = Array.from(counts.entries()).sort((a, b) => b[1] - a[1]);
-    if (state.dexBreed !== 'all' && !counts.has(state.dexBreed)) state.dexBreed = 'all';
-    activeVal = state.dexBreed;
-    items = [
-      { id: 'all', label: '全部品种' },
-      ...sorted.map(([name, n]) => ({ id: name, label: `${name} (${n})` }))
-    ];
-  } else {
-    const counts = new Map();
-    for (const c of state.cards) {
-      const coat = String(c.coatPattern || '').trim();
-      if (!coat) continue;
-      counts.set(coat, (counts.get(coat) || 0) + 1);
-    }
-    const sorted = Array.from(counts.entries()).sort((a, b) => b[1] - a[1]);
-    if (state.dexCoat !== 'all' && !counts.has(state.dexCoat)) state.dexCoat = 'all';
-    activeVal = state.dexCoat;
-    items = [
-      { id: 'all', label: '全部花色' },
-      ...sorted.map(([coat, n]) => ({ id: coat, label: `${coat} (${n})` }))
-    ];
+    return;
   }
 
-  for (const it of items) {
+  // 品种等级：一级按物种（猫猫/狗狗/鹦鹉/豚鼠/其他），二级展开该物种具体品种
+  const speciesCounts = new Map();
+  for (const c of state.cards) {
+    const sp = resolveCardSpecies(c);
+    speciesCounts.set(sp, (speciesCounts.get(sp) || 0) + 1);
+  }
+  const speciesItems = [
+    { id: 'all', label: `全部物种 (${state.cards.length})` },
+    ...PET_SPECIES_PRESETS.map((sp) => ({
+      id: sp.id,
+      label: `${sp.emoji} ${sp.label} (${speciesCounts.get(sp.id) || 0})`
+    }))
+  ];
+  for (const it of speciesItems) {
     const btn = document.createElement('button');
     btn.type = 'button';
-    btn.className = `dex-sub-pill${it.id === activeVal ? ' is-active' : ''}`;
+    btn.className = `dex-sub-pill${it.id === state.dexSpecies ? ' is-active' : ''}`;
     btn.textContent = it.label;
     btn.addEventListener('click', () => {
-      if (state.dexDimension === 'rarity') state.dexRarity = it.id;
-      else if (state.dexDimension === 'breed') state.dexBreed = it.id;
-      else state.dexCoat = it.id;
+      state.dexSpecies = it.id;
+      state.dexBreed = 'all';
       renderDexSubfilters();
       renderDexGrid();
     });
     dom.dexSubfilterBar.appendChild(btn);
+  }
+
+  if (dom.dexBreedSubfilterBar) {
+    dom.dexBreedSubfilterBar.hidden = false;
+    dom.dexBreedSubfilterBar.innerHTML = '';
+    const breedCounts = new Map();
+    for (const c of state.cards) {
+      if (state.dexSpecies !== 'all' && resolveCardSpecies(c) !== state.dexSpecies) continue;
+      const b = String(c.breedName || '').trim() || '混血田园喵';
+      breedCounts.set(b, (breedCounts.get(b) || 0) + 1);
+    }
+    const sortedBreeds = Array.from(breedCounts.entries()).sort((a, b) => b[1] - a[1]);
+    if (state.dexBreed !== 'all' && !breedCounts.has(state.dexBreed)) state.dexBreed = 'all';
+    const breedItems = [
+      { id: 'all', label: '全部品种' },
+      ...sortedBreeds.map(([name, n]) => ({ id: name, label: `${name} (${n})` }))
+    ];
+    for (const it of breedItems) {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = `dex-sub-pill${it.id === state.dexBreed ? ' is-active' : ''}`;
+      btn.textContent = it.label;
+      btn.addEventListener('click', () => {
+        state.dexBreed = it.id;
+        renderDexSubfilters();
+        renderDexGrid();
+      });
+      dom.dexBreedSubfilterBar.appendChild(btn);
+    }
   }
 }
 
 function renderCatalogFilters() {
   if (dom.dexCatalogScopeBar) {
     dom.dexCatalogScopeBar.innerHTML = '';
-    const catN = PET_CATALOG_BREEDS.filter((b) => b.species === 'cat').length;
-    const dogN = PET_CATALOG_BREEDS.filter((b) => b.species === 'dog').length;
     const scopes = [
       { id: 'all', label: `全部 (${PET_CATALOG_BREEDS.length})` },
-      { id: 'cat', label: `🐱 猫咪 (${catN})` },
-      { id: 'dog', label: `🐶 狗狗 (${dogN})` }
+      ...PET_SPECIES_PRESETS.map((sp) => {
+        const n = PET_CATALOG_BREEDS.filter((b) => b.species === sp.id).length;
+        return { id: sp.id, label: `${sp.emoji} ${sp.label} (${n})` };
+      })
     ];
     for (const s of scopes) {
       const btn = document.createElement('button');
@@ -1231,14 +1389,15 @@ function renderBreedCatalogWall() {
     } else {
       const ph = document.createElement('div');
       ph.style.cssText = 'width:58px;height:58px;display:grid;place-items:center;font-size:26px;opacity:0.65;';
-      ph.textContent = b.species === 'dog' ? '🐶' : '🐱';
+      const spMeta = PET_SPECIES_PRESETS.find((s) => s.id === b.species);
+      ph.textContent = spMeta ? spMeta.emoji : '🐾';
       cell.appendChild(ph);
     }
 
     const title = document.createElement('strong');
     title.textContent = b.shortName || b.name;
     const sub = document.createElement('span');
-    sub.textContent = unlocked ? `已集 ${matched.length} 张 · ${b.coat}` : `${b.coat} · 待捕捉`;
+    sub.textContent = unlocked ? `已集 ${matched.length} 张` : '待捕捉';
     cell.appendChild(title);
     cell.appendChild(sub);
 
@@ -1248,10 +1407,11 @@ function renderBreedCatalogWall() {
           openCardInspectModal(matched[0].id);
         } else {
           state.dexMode = 'cards';
-          state.dexDimension = 'breed';
+          state.dexDimension = 'species';
+          state.dexSpecies = b.species || 'all';
           state.dexBreed = repCard.breedName || b.name;
           $$('.dex-dim-pill', dom.dexDimensionBar).forEach((el) => {
-            el.classList.toggle('is-active', el.dataset.dim === 'breed');
+            el.classList.toggle('is-active', el.dataset.dim === 'species');
           });
           renderDexGrid();
         }
@@ -1284,6 +1444,8 @@ async function getCardThumbDataUrl(card) {
     card.energyType,
     card.personalityTag,
     card.hobbyTag,
+    card.locationEnabled ? '1' : '0',
+    card.locationName || '',
     card.cardBackStyle || 'fullArtPet',
     card.cardBackOrientation || 'auto',
     card.showBackQRCode !== false ? '1' : '0',
@@ -1320,11 +1482,12 @@ async function renderDexGrid() {
 
     if (state.dexDimension === 'rarity' && state.dexRarity !== 'all') {
       if (computeCardRarity(card) !== state.dexRarity) return false;
-    } else if (state.dexDimension === 'breed' && state.dexBreed !== 'all') {
-      const b = String(card.breedName || '').trim() || '混血田园喵';
-      if (b !== state.dexBreed) return false;
-    } else if (state.dexDimension === 'coat' && state.dexCoat !== 'all') {
-      if (String(card.coatPattern || '').trim() !== state.dexCoat) return false;
+    } else if (state.dexDimension === 'species') {
+      if (state.dexSpecies !== 'all' && resolveCardSpecies(card) !== state.dexSpecies) return false;
+      if (state.dexBreed !== 'all') {
+        const b = String(card.breedName || '').trim() || '混血田园喵';
+        if (b !== state.dexBreed) return false;
+      }
     }
 
     if (!q) return true;
@@ -1455,13 +1618,16 @@ function renderInspectModalNow() {
   dom.btnInspectFav.classList.toggle('is-active', Boolean(card.isFavorite));
   dom.btnInspectFlip.textContent = state.isInspectFlipped ? '↻ 看正面' : '↻ 看背面';
   dom.inspectCardFlipper.classList.toggle('is-flipped', state.isInspectFlipped);
+  const isLand = state.isInspectFlipped && isLandscapeBackCard(card, state.inspectCutoutImg);
+  dom.inspectCardTilt?.classList.toggle('is-landscape-back', isLand);
 
   const adaptive = resolveAdaptiveFX(card);
   dom.inspectAdaptiveBadge.textContent = `✨ ${adaptive.title}`;
 
-  const ox = Number(card.subjectOffsetX || 0);
-  const oy = Number(card.subjectOffsetY || 0);
-  const sc = Number(card.subjectScale || 1);
+  const isBack = state.isInspectFlipped;
+  const ox = Number(isBack ? (card.backSubjectOffsetX || 0) : (card.subjectOffsetX || 0));
+  const oy = Number(isBack ? (card.backSubjectOffsetY || 0) : (card.subjectOffsetY || 0));
+  const sc = Number(isBack ? (card.backSubjectScale || 1) : (card.subjectScale || 1));
   dom.inspectSliderOx.value = String(ox);
   dom.inspectOxVal.textContent = `${Math.round(ox * 100)}%`;
   dom.inspectSliderOy.value = String(oy);
@@ -1470,7 +1636,7 @@ function renderInspectModalNow() {
   dom.inspectScaleVal.textContent = `${sc.toFixed(2)}×`;
 
   renderCardFrontToCanvas(dom.inspectCanvasFront, card, state.inspectCutoutImg, 2.2);
-  renderCardBackToCanvas(dom.inspectCanvasBack, card, state.inspectCutoutImg, 2.2, state.inspectEmblemImg || null);
+  renderCardBackToCanvas(dom.inspectCanvasBack, card, state.inspectCutoutImg, 2.2, state.inspectEmblemImg || null, { presentUpright: true });
 }
 
 async function openCardInspectModal(cardId) {
@@ -1480,7 +1646,7 @@ async function openCardInspectModal(cardId) {
   state.inspectCardId = card.id;
   state.isInspectFlipped = false;
   state.isInspectFraming = false;
-  dom.inspectCardTilt.classList.remove('is-framing');
+  dom.inspectCardTilt.classList.remove('is-framing', 'is-landscape-back');
   dom.inspectFramingGuide.hidden = true;
   dom.inspectFramingSliders.hidden = true;
   dom.btnInspectFramingToggle.classList.remove('is-active');
@@ -1517,7 +1683,9 @@ function openCardEditModal(cardId) {
   dom.editCardAtk.value = card.attackName || '';
   dom.editCardHp.value = String(card.hp ?? 180);
   dom.editCardFlavor.value = card.flavorText || '';
-  dom.editCardLocation.value = card.locationName || '抓宠大作战 示范馆';
+  const locOn = card.locationEnabled === true;
+  if (dom.editLocationEnabled) dom.editLocationEnabled.checked = locOn;
+  dom.editCardLocation.value = locOn ? sanitizeStreetLocation(card.locationName) : '';
   dom.editCardSerial.value = card.serialNumber || '001/165 ★';
   dom.editBackStyle.value = card.cardBackStyle || 'fullArtPet';
   dom.editBackOrientation.value = card.cardBackOrientation || 'auto';
@@ -1545,7 +1713,9 @@ async function saveCardEditModal() {
   target.attackName = dom.editCardAtk.value.trim() || target.attackName;
   target.hp = Math.max(60, Math.min(320, Number(dom.editCardHp.value || target.hp || 180)));
   target.flavorText = dom.editCardFlavor.value.trim();
-  target.locationName = dom.editCardLocation.value.trim() || '抓宠大作战';
+  const locOn = Boolean(dom.editLocationEnabled?.checked);
+  target.locationEnabled = locOn;
+  target.locationName = locOn ? sanitizeStreetLocation(dom.editCardLocation.value.trim()) : '保密街区';
   target.serialNumber = dom.editCardSerial.value.trim() || '001/165 ★';
   target.cardBackStyle = dom.editBackStyle.value || 'fullArtPet';
   target.cardBackOrientation = dom.editBackOrientation.value || 'auto';
@@ -1720,8 +1890,17 @@ function bindEvents() {
   // Axis Tabs
   dom.axisTabs.forEach((btn) => btn.addEventListener('click', () => switchAxis(btn.dataset.axis)));
 
-  // Stage quick actions
+  // Stage quick actions & Front/Back + Landscape controls
   dom.btnEnter3d.addEventListener('click', () => switchTab('showcase'));
+  dom.btnFaceFront?.addEventListener('click', () => setStudioFlipped(false));
+  dom.btnFaceBack?.addEventListener('click', () => setStudioFlipped(true));
+  dom.btnToggleLandscape?.addEventListener('click', () => {
+    const currentlyLand = isLandscapeBackCard(state.currentCard, state.activeCutoutImg);
+    state.currentCard.cardBackOrientation = currentlyLand ? 'portrait' : 'landscape';
+    syncControlsFromCurrentCard();
+    renderStudioNow();
+    showToast(currentlyLand ? '已切回竖版卡片展示' : '已切换横版大图展示，下方按钮已自动重排');
+  });
 
   dom.btnRandomize.addEventListener('click', () => {
     const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
@@ -1730,14 +1909,23 @@ function bindEvents() {
     const realFx = FX_PRESETS.filter((f) => f.id !== 'auto' && f.id !== 'none');
     const realBadges = BADGE_PRESETS.filter((b) => b.id !== 'auto');
 
-    state.currentCard.borderStyle = pick(realBorders).id;
-    state.currentCard.backgroundStyle = pick(realBgs).id;
-    state.currentCard.fxPreset = pick(realFx).id;
-    state.currentCard.badgeIcon = pick(realBadges).id;
-    state.currentCard.foilIntensity = Number((0.65 + Math.random() * 0.75).toFixed(2));
+    if (state.isFlipped) {
+      state.currentCard.backBorderStyle = pick(realBorders).id;
+      state.currentCard.backBackgroundStyle = pick(realBgs).id;
+      state.currentCard.backFXPreset = pick(realFx).id;
+      state.currentCard.backBadgeIcon = pick(realBadges).id;
+      state.currentCard.backFoilIntensity = Number((0.65 + Math.random() * 0.75).toFixed(2));
+      showToast('已为背面独立随机混搭一组高罕皮肤');
+    } else {
+      state.currentCard.borderStyle = pick(realBorders).id;
+      state.currentCard.backgroundStyle = pick(realBgs).id;
+      state.currentCard.fxPreset = pick(realFx).id;
+      state.currentCard.badgeIcon = pick(realBadges).id;
+      state.currentCard.foilIntensity = Number((0.65 + Math.random() * 0.75).toFixed(2));
+      showToast('已为正面独立随机混搭一组高罕皮肤');
+    }
     syncControlsFromCurrentCard();
     renderStudioNow();
-    showToast('已随机混搭一组高罕卡面皮肤');
   });
 
   dom.btnRandomizeIos?.addEventListener('click', () => dom.btnRandomize.click());
@@ -1796,28 +1984,21 @@ function bindEvents() {
   dom.btnExport4k.addEventListener('click', trigger4KDownload);
   dom.btn3dExport4k.addEventListener('click', trigger4KDownload);
 
-  // Studio Card Interactive Tilt, Flip & Direct Framing Drag
+  // Studio Card Interactive Tilt, Smooth Single-Tap Flip & Independent Front/Back Framing Drag
   dom.cardTilt.addEventListener('pointerdown', (e) => {
     if (state.activeAxis === 'framing') {
       state.isDraggingFraming = true;
       dom.cardTilt.setPointerCapture(e.pointerId);
+      const isBack = state.isFlipped;
       state.framingStart = {
         clientX: e.clientX,
         clientY: e.clientY,
-        ox: Number(state.currentCard.subjectOffsetX || 0),
-        oy: Number(state.currentCard.subjectOffsetY || 0)
+        ox: Number(isBack ? (state.currentCard.backSubjectOffsetX || 0) : (state.currentCard.subjectOffsetX || 0)),
+        oy: Number(isBack ? (state.currentCard.backSubjectOffsetY || 0) : (state.currentCard.subjectOffsetY || 0))
       };
       return;
     }
-
-    const now = performance.now();
-    if (now - state.lastCardTapAt < 320) {
-      state.isFlipped = !state.isFlipped;
-      dom.cardFlipper.classList.toggle('is-flipped', state.isFlipped);
-      state.lastCardTapAt = 0;
-    } else {
-      state.lastCardTapAt = now;
-    }
+    state.cardPointerDownPos = { x: e.clientX, y: e.clientY, t: performance.now() };
   });
 
   dom.cardTilt.addEventListener('pointermove', (e) => {
@@ -1826,8 +2007,15 @@ function bindEvents() {
       if (!state.isDraggingFraming) return;
       const dx = (e.clientX - state.framingStart.clientX) / Math.max(120, rect.width);
       const dy = (e.clientY - state.framingStart.clientY) / Math.max(120, rect.height);
-      state.currentCard.subjectOffsetX = Math.max(-0.4, Math.min(0.4, Number((state.framingStart.ox + dx * 1.15).toFixed(2))));
-      state.currentCard.subjectOffsetY = Math.max(-0.4, Math.min(0.4, Number((state.framingStart.oy + dy * 1.15).toFixed(2))));
+      const nextX = Math.max(-0.4, Math.min(0.4, Number((state.framingStart.ox + dx * 1.15).toFixed(2))));
+      const nextY = Math.max(-0.4, Math.min(0.4, Number((state.framingStart.oy + dy * 1.15).toFixed(2))));
+      if (state.isFlipped) {
+        state.currentCard.backSubjectOffsetX = nextX;
+        state.currentCard.backSubjectOffsetY = nextY;
+      } else {
+        state.currentCard.subjectOffsetX = nextX;
+        state.currentCard.subjectOffsetY = nextY;
+      }
       syncControlsFromCurrentCard();
       scheduleStudioRender();
       return;
@@ -1842,30 +2030,41 @@ function bindEvents() {
     dom.cardSheen.style.setProperty('--gy', `${(ny * 100).toFixed(1)}%`);
   });
 
-  const endTiltOrDrag = () => {
+  const endTiltOrDrag = (e) => {
     state.isDraggingFraming = false;
     if (state.activeAxis !== 'framing') {
       dom.cardTilt.style.transform = '';
+      if (e && e.type === 'pointerup' && state.cardPointerDownPos) {
+        const dist = Math.hypot(e.clientX - state.cardPointerDownPos.x, e.clientY - state.cardPointerDownPos.y);
+        const elapsed = performance.now() - state.cardPointerDownPos.t;
+        if (dist < 10 && elapsed < 500) {
+          setStudioFlipped(!state.isFlipped);
+        }
+      }
     }
+    state.cardPointerDownPos = null;
   };
-  dom.cardTilt.addEventListener('pointerleave', endTiltOrDrag);
+  dom.cardTilt.addEventListener('pointerleave', () => endTiltOrDrag(null));
   dom.cardTilt.addEventListener('pointerup', endTiltOrDrag);
-  dom.cardTilt.addEventListener('pointercancel', endTiltOrDrag);
+  dom.cardTilt.addEventListener('pointercancel', () => endTiltOrDrag(null));
 
   dom.cardTilt.addEventListener('wheel', (e) => {
     if (state.activeAxis !== 'framing') return;
     e.preventDefault();
-    const cur = Number(state.currentCard.subjectScale || 1);
+    const isBack = state.isFlipped;
+    const cur = Number(isBack ? (state.currentCard.backSubjectScale || 1) : (state.currentCard.subjectScale || 1));
     const next = Math.max(0.7, Math.min(1.85, Number((cur - Math.sign(e.deltaY) * 0.06).toFixed(2))));
-    state.currentCard.subjectScale = next;
+    if (isBack) state.currentCard.backSubjectScale = next;
+    else state.currentCard.subjectScale = next;
     syncControlsFromCurrentCard();
     scheduleStudioRender();
   }, { passive: false });
 
-  // Foil intensity
+  // Foil intensity (independent per face)
   dom.foilSlider.addEventListener('input', () => {
     const val = Number(dom.foilSlider.value);
-    state.currentCard.foilIntensity = val;
+    if (state.isFlipped) state.currentCard.backFoilIntensity = val;
+    else state.currentCard.foilIntensity = val;
     dom.foilVal.textContent = `${Math.round(val * 100)}%`;
     scheduleStudioRender();
   });
@@ -1936,30 +2135,59 @@ function bindEvents() {
     state.currentCard.showBackQRCode = dom.chkBackQr.checked;
     scheduleStudioRender();
   });
+  dom.chkLocationEnabled?.addEventListener('change', () => {
+    if (dom.chkLocationEnabled.checked) {
+      requestStreetLocation(state.currentCard, { forceAsk: state.locationConsent !== 'granted' });
+    } else {
+      state.currentCard.locationEnabled = false;
+      state.currentCard.locationName = '保密街区';
+      syncControlsFromCurrentCard();
+      scheduleStudioRender();
+      showToast('已关闭定位显示，保护宠物安全');
+    }
+  });
+  dom.btnRequestStreetLoc?.addEventListener('click', () => {
+    requestStreetLocation(state.currentCard, { forceAsk: state.locationConsent === 'denied' });
+  });
+  dom.inputCardLocation?.addEventListener('change', () => {
+    const safe = sanitizeStreetLocation(dom.inputCardLocation.value);
+    state.currentCard.locationName = safe;
+    dom.inputCardLocation.value = safe;
+    scheduleStudioRender();
+  });
 
-  // Framing sliders
+  // Framing sliders (independent per face)
   dom.sliderOx.addEventListener('input', () => {
     const v = Number(dom.sliderOx.value);
-    state.currentCard.subjectOffsetX = v;
+    if (state.isFlipped) state.currentCard.backSubjectOffsetX = v;
+    else state.currentCard.subjectOffsetX = v;
     dom.oxVal.textContent = `${Math.round(v * 100)}%`;
     scheduleStudioRender();
   });
   dom.sliderOy.addEventListener('input', () => {
     const v = Number(dom.sliderOy.value);
-    state.currentCard.subjectOffsetY = v;
+    if (state.isFlipped) state.currentCard.backSubjectOffsetY = v;
+    else state.currentCard.subjectOffsetY = v;
     dom.oyVal.textContent = `${Math.round(v * 100)}%`;
     scheduleStudioRender();
   });
   dom.sliderScale.addEventListener('input', () => {
     const v = Number(dom.sliderScale.value);
-    state.currentCard.subjectScale = v;
+    if (state.isFlipped) state.currentCard.backSubjectScale = v;
+    else state.currentCard.subjectScale = v;
     dom.scaleVal.textContent = `${v.toFixed(2)}×`;
     scheduleStudioRender();
   });
   dom.btnResetFraming.addEventListener('click', () => {
-    state.currentCard.subjectOffsetX = 0;
-    state.currentCard.subjectOffsetY = 0;
-    state.currentCard.subjectScale = 1;
+    if (state.isFlipped) {
+      state.currentCard.backSubjectOffsetX = 0;
+      state.currentCard.backSubjectOffsetY = 0;
+      state.currentCard.backSubjectScale = 1;
+    } else {
+      state.currentCard.subjectOffsetX = 0;
+      state.currentCard.subjectOffsetY = 0;
+      state.currentCard.subjectScale = 1;
+    }
     syncControlsFromCurrentCard();
     scheduleStudioRender();
   });
@@ -2217,7 +2445,11 @@ function bindEvents() {
       subjectOffsetX: 0,
       subjectOffsetY: 0,
       subjectScale: 1,
-      locationName: '抓宠大作战 网页工坊',
+      backSubjectOffsetX: 0,
+      backSubjectOffsetY: 0,
+      backSubjectScale: 1,
+      locationEnabled: state.locationConsent === 'granted',
+      locationName: '保密街区',
       createdAt: Date.now()
     };
 
@@ -2278,6 +2510,11 @@ function bindEvents() {
 
     const buffNote = buffHp > 0 ? `（含投喂加成 HP+${buffHp}${buffEx >= 15 ? ' · 稀有进阶' : ''}）` : '';
     showToast(`已鉴定为「${state.currentCard.breedName} · ${state.currentCard.coatPattern}」${matchHintNote}${buffNote}`, 3400);
+    if (state.locationConsent === 'unasked') {
+      setTimeout(() => requestStreetLocation(state.currentCard, { forceAsk: true }), 450);
+    } else if (state.locationConsent === 'granted') {
+      requestStreetLocation(state.currentCard, { forceAsk: false });
+    }
   };
 
   dom.btnCutoutUseFull.addEventListener('click', () => {
@@ -2389,7 +2626,6 @@ function bindEvents() {
     dom.inspectFramingGuide.hidden = !state.isInspectFraming;
     dom.inspectFramingSliders.hidden = !state.isInspectFraming;
     if (state.isInspectFraming) {
-      state.isInspectFlipped = false;
       dom.inspectCardTilt.style.transform = '';
       renderInspectModalNow();
     }
@@ -2397,9 +2633,15 @@ function bindEvents() {
   dom.btnInspectFramingReset?.addEventListener('click', async () => {
     const card = getInspectedCard();
     if (!card) return;
-    card.subjectOffsetX = 0;
-    card.subjectOffsetY = 0;
-    card.subjectScale = 1.0;
+    if (state.isInspectFlipped) {
+      card.backSubjectOffsetX = 0;
+      card.backSubjectOffsetY = 0;
+      card.backSubjectScale = 1.0;
+    } else {
+      card.subjectOffsetX = 0;
+      card.subjectOffsetY = 0;
+      card.subjectScale = 1.0;
+    }
     card.updatedAt = Date.now();
     await upsertCard(card);
     renderInspectModalNow();
@@ -2416,23 +2658,25 @@ function bindEvents() {
   dom.inspectSliderOx?.addEventListener('input', () => {
     const card = getInspectedCard();
     if (!card) return;
-    card.subjectOffsetX = Number(dom.inspectSliderOx.value);
+    if (state.isInspectFlipped) card.backSubjectOffsetX = Number(dom.inspectSliderOx.value);
+    else card.subjectOffsetX = Number(dom.inspectSliderOx.value);
     updateInspectFramingValue();
   });
   dom.inspectSliderOy?.addEventListener('input', () => {
     const card = getInspectedCard();
     if (!card) return;
-    card.subjectOffsetY = Number(dom.inspectSliderOy.value);
+    if (state.isInspectFlipped) card.backSubjectOffsetY = Number(dom.inspectSliderOy.value);
+    else card.subjectOffsetY = Number(dom.inspectSliderOy.value);
     updateInspectFramingValue();
   });
   dom.inspectSliderScale?.addEventListener('input', () => {
     const card = getInspectedCard();
     if (!card) return;
-    card.subjectScale = Number(dom.inspectSliderScale.value);
+    if (state.isInspectFlipped) card.backSubjectScale = Number(dom.inspectSliderScale.value);
+    else card.subjectScale = Number(dom.inspectSliderScale.value);
     updateInspectFramingValue();
   });
 
-  let lastInspectTap = 0;
   let inspectFramingActive = false;
   dom.inspectCardTilt?.addEventListener('pointerdown', (e) => {
     const card = getInspectedCard();
@@ -2440,17 +2684,16 @@ function bindEvents() {
     if (state.isInspectFraming) {
       inspectFramingActive = true;
       dom.inspectCardTilt.setPointerCapture(e.pointerId);
-      state.inspectDragStart = { clientX: e.clientX, clientY: e.clientY, ox: Number(card.subjectOffsetX || 0), oy: Number(card.subjectOffsetY || 0) };
+      const isBack = state.isInspectFlipped;
+      state.inspectDragStart = {
+        clientX: e.clientX,
+        clientY: e.clientY,
+        ox: Number(isBack ? (card.backSubjectOffsetX || 0) : (card.subjectOffsetX || 0)),
+        oy: Number(isBack ? (card.backSubjectOffsetY || 0) : (card.subjectOffsetY || 0))
+      };
       return;
     }
-    const now = performance.now();
-    if (now - lastInspectTap < 320) {
-      state.isInspectFlipped = !state.isInspectFlipped;
-      renderInspectModalNow();
-      lastInspectTap = 0;
-    } else {
-      lastInspectTap = now;
-    }
+    state.inspectPointerDownPos = { x: e.clientX, y: e.clientY, t: performance.now() };
   });
   dom.inspectCardTilt?.addEventListener('pointermove', (e) => {
     const card = getInspectedCard();
@@ -2459,8 +2702,15 @@ function bindEvents() {
     if (state.isInspectFraming && inspectFramingActive) {
       const dx = (e.clientX - state.inspectDragStart.clientX) / Math.max(120, rect.width);
       const dy = (e.clientY - state.inspectDragStart.clientY) / Math.max(120, rect.height);
-      card.subjectOffsetX = Math.max(-0.4, Math.min(0.4, Number((state.inspectDragStart.ox + dx * 1.1).toFixed(2))));
-      card.subjectOffsetY = Math.max(-0.4, Math.min(0.4, Number((state.inspectDragStart.oy + dy * 1.1).toFixed(2))));
+      const nextX = Math.max(-0.4, Math.min(0.4, Number((state.inspectDragStart.ox + dx * 1.1).toFixed(2))));
+      const nextY = Math.max(-0.4, Math.min(0.4, Number((state.inspectDragStart.oy + dy * 1.1).toFixed(2))));
+      if (state.isInspectFlipped) {
+        card.backSubjectOffsetX = nextX;
+        card.backSubjectOffsetY = nextY;
+      } else {
+        card.subjectOffsetX = nextX;
+        card.subjectOffsetY = nextY;
+      }
       updateInspectFramingValue();
       return;
     }
@@ -2470,13 +2720,24 @@ function bindEvents() {
     dom.inspectCardSheen.style.setProperty('--gx', `${(nx * 100).toFixed(1)}%`);
     dom.inspectCardSheen.style.setProperty('--gy', `${(ny * 100).toFixed(1)}%`);
   });
-  const resetInspectTilt = () => {
+  const resetInspectTilt = (e) => {
     inspectFramingActive = false;
-    if (!state.isInspectFraming && dom.inspectCardTilt) dom.inspectCardTilt.style.transform = '';
+    if (!state.isInspectFraming && dom.inspectCardTilt) {
+      dom.inspectCardTilt.style.transform = '';
+      if (e && e.type === 'pointerup' && state.inspectPointerDownPos) {
+        const dist = Math.hypot(e.clientX - state.inspectPointerDownPos.x, e.clientY - state.inspectPointerDownPos.y);
+        const elapsed = performance.now() - state.inspectPointerDownPos.t;
+        if (dist < 10 && elapsed < 500) {
+          state.isInspectFlipped = !state.isInspectFlipped;
+          renderInspectModalNow();
+        }
+      }
+    }
+    state.inspectPointerDownPos = null;
   };
   dom.inspectCardTilt?.addEventListener('pointerup', resetInspectTilt);
-  dom.inspectCardTilt?.addEventListener('pointerleave', resetInspectTilt);
-  dom.inspectCardTilt?.addEventListener('pointercancel', resetInspectTilt);
+  dom.inspectCardTilt?.addEventListener('pointerleave', () => resetInspectTilt(null));
+  dom.inspectCardTilt?.addEventListener('pointercancel', () => resetInspectTilt(null));
 
   dom.btnInspectExport?.addEventListener('click', async () => {
     const card = getInspectedCard();

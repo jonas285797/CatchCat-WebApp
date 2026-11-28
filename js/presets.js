@@ -353,13 +353,15 @@ export function inferPetMoodProfile(input = {}, trimMetrics = null) {
   return { mood, label: preset.label, reason, explicit: false };
 }
 
-export function resolveSmartBackgroundForPet(card = {}, trimMetrics = null) {
-  if (card.backgroundStyle && card.backgroundStyle !== 'auto') {
-    const exists = BACKGROUND_PRESETS.some((b) => b.id === card.backgroundStyle);
-    if (exists) return card.backgroundStyle;
+export function resolveSmartBackgroundForPet(card = {}, trimMetrics = null, { forBack = false } = {}) {
+  const explicitBg = forBack ? card.backBackgroundStyle : card.backgroundStyle;
+  if (explicitBg && explicitBg !== 'auto') {
+    const exists = BACKGROUND_PRESETS.some((b) => b.id === explicitBg);
+    if (exists) return explicitBg;
   }
 
-  const { mood } = inferPetMoodProfile(card, trimMetrics);
+  const moodInput = forBack ? { ...card, petMood: card.backPetMood || 'auto' } : card;
+  const { mood } = inferPetMoodProfile(moodInput, trimMetrics);
   const pools = {
     energetic: {
       swift: ['emeraldGale', 'waveRiderCyan'],
@@ -447,7 +449,30 @@ export const PET_CATALOG_BREEDS = [
   { name: '比熊犬', shortName: '比熊犬', species: 'dog', coat: '棉花糖白', energy: 'charm' },
   { name: '约克夏梗', shortName: '约克夏', species: 'dog', coat: '钢蓝鎏金', energy: 'charm' },
   { name: '腊肠犬', shortName: '腊肠犬', species: 'dog', coat: '琥珀短腿', energy: 'food' },
-  { name: '马尔济斯犬', shortName: '马尔济斯', species: 'dog', coat: '白雪丝缎', energy: 'charm' }
+  { name: '马尔济斯犬', shortName: '马尔济斯', species: 'dog', coat: '白雪丝缎', energy: 'charm' },
+  // 4 鹦鹉
+  { name: '虎皮鹦鹉', shortName: '虎皮鹦鹉', species: 'parrot', coat: '翠羽云斑', energy: 'swift' },
+  { name: '玄凤鹦鹉', shortName: '玄凤鹦鹉', species: 'parrot', coat: '太阳腮红冠', energy: 'charm' },
+  { name: '牡丹鹦鹉', shortName: '牡丹鹦鹉', species: 'parrot', coat: '蜜桃彩虹羽', energy: 'charm' },
+  { name: '和尚鹦鹉', shortName: '和尚鹦鹉', species: 'parrot', coat: '青羽银胸', energy: 'swift' },
+  // 4 豚鼠
+  { name: '短顺毛豚鼠', shortName: '短顺毛豚鼠', species: 'guineaPig', coat: '三色奶茶绒', energy: 'food' },
+  { name: '冠毛豚鼠', shortName: '冠毛豚鼠', species: 'guineaPig', coat: '皇冠梅花顶', energy: 'charm' },
+  { name: '泰迪豚鼠', shortName: '泰迪豚鼠', species: 'guineaPig', coat: '泰迪蓬松卷', energy: 'charm' },
+  { name: '喜马拉雅豚鼠', shortName: '喜马拉雅豚鼠', species: 'guineaPig', coat: '丝绸缎面花', energy: 'dark' },
+  // 4 其他萌宠
+  { name: '垂耳兔', shortName: '垂耳兔', species: 'other', coat: '软垂奶茶耳', energy: 'charm' },
+  { name: '金丝熊仓鼠', shortName: '金丝熊', species: 'other', coat: '琥珀鼓腮颊', energy: 'food' },
+  { name: '龙猫', shortName: '龙猫', species: 'other', coat: '银雾天鹅绒', energy: 'normal' },
+  { name: '星际小萌宠', shortName: '其他萌宠', species: 'other', coat: '星尘幻彩', energy: 'charm' }
+];
+
+export const PET_SPECIES_PRESETS = [
+  { id: 'cat', label: '猫猫', emoji: '🐱' },
+  { id: 'dog', label: '狗狗', emoji: '🐶' },
+  { id: 'parrot', label: '鹦鹉', emoji: '🦜' },
+  { id: 'guineaPig', label: '豚鼠', emoji: '🐹' },
+  { id: 'other', label: '其他萌宠', emoji: '🐾' }
 ];
 
 export const CARD_RARITY_PRESETS = [
@@ -479,11 +504,36 @@ export function matchCatalogBreed(card = {}) {
 }
 
 export function resolveCardSpecies(card = {}) {
-  if (card.species === 'dog' || card.species === 'cat') return card.species;
+  if (['cat', 'dog', 'parrot', 'guineaPig', 'other'].includes(card.species)) return card.species;
   const cat = matchCatalogBreed(card);
   if (cat) return cat.species;
   const hay = `${card.breedName || ''} ${card.name || ''}`.toLowerCase();
+  if (hay.includes('鹦鹉') || hay.includes('玄凤') || hay.includes('虎皮') || hay.includes('牡丹')) return 'parrot';
+  if (hay.includes('豚鼠') || hay.includes('荷兰猪')) return 'guineaPig';
+  if (hay.includes('兔') || hay.includes('仓鼠') || hay.includes('龙猫') || hay.includes('小宠')) return 'other';
   if (hay.includes('犬') || hay.includes('狗') || hay.includes('牧羊') || hay.includes('柯基') || hay.includes('柴')) return 'dog';
   return 'cat';
+}
+
+/** 严格脱敏到城市/街道级：自动剥离门牌号、楼栋、单元、室、地库、垃圾桶等精确定位信息，保护宠物安全 */
+export function sanitizeStreetLocation(raw) {
+  const trimmed = String(raw || '').trim();
+  if (!trimmed || trimmed === '保密街区' || trimmed === '隐藏位置') return '保密街区';
+  let safe = trimmed
+    .replace(/[A-Za-z]?[0-9一二三四五六七八九十百]+[号栋幢单元室层楼弄巷排座]+/g, '')
+    .replace(/[0-9]+\s*#/g, '')
+    .replace(/(?:地下车库|地库|充电桩|垃圾桶|水表井|快递柜|保安亭|西门|东门|南门|北门|侧门|后门|正门|窗口|窗台外机|台阶|楼下|门前|门口)[^\s·,]*/g, '')
+    .replace(/[0-9]+(?:\.[0-9]+)?°?\s*[NSEW]?/g, '')
+    .replace(/\s{2,}/g, ' ')
+    .replace(/^[·,\-_/\s]+|[·,\-_/\s]+$/g, '');
+  if (!safe) return '本地街道周边';
+  if (!/[街路道区镇乡市]/.test(safe)) return `${safe}街区`;
+  return safe;
+}
+
+export function formatCardGeneratedTime(ts) {
+  const d = new Date(Number(ts) || Date.now());
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}.${pad(d.getMonth() + 1)}.${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 

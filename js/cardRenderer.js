@@ -5,7 +5,9 @@ import {
   FX_PRESETS,
   BADGE_PRESETS,
   resolveAdaptiveFX,
-  resolveSmartBackgroundForPet
+  resolveSmartBackgroundForPet,
+  sanitizeStreetLocation,
+  formatCardGeneratedTime
 } from './presets.js?v=20261128b';
 import { drawQRToCanvas } from './qr.js?v=20261128b';
 import { analyzeCutoutMoodMetrics } from './ai.js?v=20261128b';
@@ -136,8 +138,9 @@ export function getCardDisplayTitle(card) {
   return card.suffix ? `${baseName} ${card.suffix}` : baseName;
 }
 
-export function resolveEffectiveBorderId(card) {
-  if (card.borderStyle && card.borderStyle !== 'auto') return card.borderStyle;
+export function resolveEffectiveBorderId(card, { forBack = false } = {}) {
+  const raw = forBack ? card.backBorderStyle : card.borderStyle;
+  if (raw && raw !== 'auto') return raw;
   const map = {
     food: 'classicGold',
     swift: 'platinumEx',
@@ -149,13 +152,14 @@ export function resolveEffectiveBorderId(card) {
   return map[card.energyType] || 'classicGold';
 }
 
-export function resolveEffectiveBgId(card, cutoutImg = null) {
+export function resolveEffectiveBgId(card, cutoutImg = null, { forBack = false } = {}) {
   const metrics = cutoutImg ? analyzeCutoutMoodMetrics(cutoutImg) : null;
-  return resolveSmartBackgroundForPet(card, metrics);
+  return resolveSmartBackgroundForPet(card, metrics, { forBack });
 }
 
-export function resolveEffectiveFXId(card) {
-  if (card.fxPreset && card.fxPreset !== 'auto') return card.fxPreset;
+export function resolveEffectiveFXId(card, { forBack = false } = {}) {
+  const raw = forBack ? card.backFXPreset : card.fxPreset;
+  if (raw && raw !== 'auto') return raw;
   const map = {
     food: 'lightningSurge',
     swift: 'speedBlades',
@@ -167,8 +171,9 @@ export function resolveEffectiveFXId(card) {
   return map[card.energyType] || 'rainbowSparkles';
 }
 
-export function resolveEffectiveBadgeId(card) {
-  if (card.badgeIcon && card.badgeIcon !== 'auto') return card.badgeIcon;
+export function resolveEffectiveBadgeId(card, { forBack = false } = {}) {
+  const raw = forBack ? card.backBadgeIcon : card.badgeIcon;
+  if (raw && raw !== 'auto') return raw;
   const map = {
     food: 'fish',
     swift: 'bolt',
@@ -178,6 +183,15 @@ export function resolveEffectiveBadgeId(card) {
     normal: 'paw'
   };
   return map[card.energyType] || 'paw';
+}
+
+export function isLandscapeBackCard(card, cutoutImg = null) {
+  if ((card?.cardBackStyle || 'fullArtPet') !== 'fullArtPet') return false;
+  const orientPref = card?.cardBackOrientation || 'auto';
+  if (orientPref === 'landscape') return true;
+  if (orientPref === 'portrait') return false;
+  const trim = measureCutoutTrimBox(cutoutImg);
+  return Boolean(trim && trim.trimW > trim.trimH * 1.12);
 }
 
 function roundPath(ctx, x, y, w, h, r) {
@@ -1305,8 +1319,10 @@ export function renderCardFrontToCanvas(canvas, card, cutoutImg, scale = 2) {
   ctx.fillText('Illus. 抓宠大作战', 22, 424);
 
   ctx.font = `600 6.5px ${FONT_STACK}`;
-  const loc = (card.locationName || '抓宠大作战 示范馆').slice(0, 14);
-  ctx.fillText(`📍 ${loc}`, 22, 435);
+  const locText = card.locationEnabled
+    ? `📍 ${sanitizeStreetLocation(card.locationName).slice(0, 14)}`
+    : '🛡️ 街区隐私保护';
+  ctx.fillText(locText, 22, 435);
 
   ctx.textAlign = 'right';
   ctx.font = `700 7.2px ${MONO_STACK}`;
@@ -1374,7 +1390,7 @@ export function renderCardFrontToCanvas(canvas, card, cutoutImg, scale = 2) {
   ctx.restore();
 }
 
-export function renderCardBackToCanvas(canvas, card, cutoutImg = null, scale = 2, emblemImg = null) {
+export function renderCardBackToCanvas(canvas, card, cutoutImg = null, scale = 2, emblemImg = null, options = {}) {
   if (!canvas) return;
   if (typeof cutoutImg === 'number') {
     emblemImg = scale && typeof scale !== 'number' ? scale : null;
@@ -1382,11 +1398,16 @@ export function renderCardBackToCanvas(canvas, card, cutoutImg = null, scale = 2
     cutoutImg = null;
   }
 
-  const W = CARD_LOGICAL_W;
-  const H = CARD_LOGICAL_H;
+  const presentUpright = Boolean(options?.presentUpright);
+  const backStyle = card.cardBackStyle || 'fullArtPet';
+  const isLandscape = isLandscapeBackCard(card, cutoutImg);
+  const drawUprightLandscape = isLandscape && presentUpright;
+
+  const W = drawUprightLandscape ? CARD_LOGICAL_H : CARD_LOGICAL_W;
+  const H = drawUprightLandscape ? CARD_LOGICAL_W : CARD_LOGICAL_H;
 
   canvas.width = Math.round(W * scale);
-  canvas.height = Math.round(canvas.width * (CARD_MM_H / CARD_MM_W));
+  canvas.height = Math.round(H * scale);
   const ctx = canvas.getContext('2d');
   if (!ctx) return;
 
@@ -1394,23 +1415,25 @@ export function renderCardBackToCanvas(canvas, card, cutoutImg = null, scale = 2
   ctx.clearRect(0, 0, W, H);
 
   const energy = getEnergyConfig(card.energyType);
-  const borderId = resolveEffectiveBorderId(card);
-  const border = BORDER_PRESETS.find((b) => b.id === borderId) || BORDER_PRESETS[1];
-  const badgeId = resolveEffectiveBadgeId(card);
+  const backBorderId = resolveEffectiveBorderId(card, { forBack: true });
+  const border = BORDER_PRESETS.find((b) => b.id === backBorderId) || BORDER_PRESETS[1];
+  const badgeId = resolveEffectiveBadgeId(card, { forBack: true });
+  const backFXId = resolveEffectiveFXId(card, { forBack: true });
+  const backFoil = Number(card.backFoilIntensity ?? 1.0);
   const orbIcon = emblemImg || cachedBackEmblemImg;
-  const backStyle = card.cardBackStyle || 'fullArtPet';
+  const generatedTimeStr = formatCardGeneratedTime(card.createdAt);
 
   ctx.save();
   roundPath(ctx, 0, 0, W, H, CARD_OUTER_RADIUS);
   ctx.clip();
 
-  // Outer metallic rim
+  // Outer metallic rim (背面独立边框)
+  const hasCustomBackBorder = card.backBorderStyle && card.backBorderStyle !== 'auto';
   ctx.fillStyle = makeLinearGrad(ctx, 0, 0, W, H, backStyle === 'fullArtPet'
-    ? (card.borderStyle && card.borderStyle !== 'auto' ? border.grad : ['#fff3bd', '#e2bc5c', '#c39134', '#f7df94'])
+    ? (hasCustomBackBorder ? border.grad : ['#fff3bd', '#e2bc5c', '#c39134', '#f7df94'])
     : border.grad);
   ctx.fillRect(0, 0, W, H);
 
-  // Inner metallic rim highlight
   roundPath(ctx, 1.5, 1.5, W - 3, H - 3, CARD_OUTER_RADIUS - 1.5);
   ctx.strokeStyle = 'rgba(255,255,255,0.28)';
   ctx.lineWidth = 0.9;
@@ -1423,33 +1446,30 @@ export function renderCardBackToCanvas(canvas, card, cutoutImg = null, scale = 2
 
   // ── Variant 1 (Default): Vibrant Full-Art Holographic Pet Back (Portrait / Landscape) ──
   if (backStyle === 'fullArtPet') {
-    const orientPref = card.cardBackOrientation || 'auto';
-    const trim = measureCutoutTrimBox(cutoutImg);
-    const isLandscape =
-      orientPref === 'landscape' ||
-      (orientPref === 'auto' && trim && trim.trimW > trim.trimH * 1.12);
-
-    const bgId = resolveEffectiveBgId(card, cutoutImg);
+    const bgId = resolveEffectiveBgId(card, cutoutImg, { forBack: true });
     const bgPreset = BACKGROUND_PRESETS.find((b) => b.id === bgId) || BACKGROUND_PRESETS[1];
     const isBrightBg = Boolean(bgPreset.bright);
 
     ctx.save();
-    if (isLandscape) {
+    if (isLandscape && !presentUpright) {
       ctx.translate(W * 0.5, H * 0.5);
       ctx.rotate(-Math.PI * 0.5);
       ctx.translate(-H * 0.5, -W * 0.5);
     }
 
-    const BW = isLandscape ? H : W;
-    const BH = isLandscape ? W : H;
+    const BW = isLandscape ? CARD_LOGICAL_H : CARD_LOGICAL_W;
+    const BH = isLandscape ? CARD_LOGICAL_W : CARD_LOGICAL_H;
 
-    // 1. Full-bleed resolved holographic expansion artwork (energetic / serene / mystic matched to pet)
+    // 1. 背面独立炫彩背景
     drawBackgroundStage(ctx, bgId, { x: 0, y: 0, w: BW, h: BH }, energy, { radius: 0, isBack: true });
 
-    // 2. Lush diagonal holographic rainbow prism glaze + luminous shimmer shafts (tuned per dark/bright theme)
+    // 2. 背面独立光效与箔纹
+    drawFXOverlay(ctx, backFXId, 'centerApex', Math.min(0.85, backFoil * 0.72), { x: 0, y: 0, w: BW, h: BH }, energy);
+    drawFoilMicroTexture(ctx, { x: 0, y: 0, w: BW, h: BH }, backFoil * 0.78);
+
     ctx.save();
     ctx.globalCompositeOperation = 'screen';
-    const sheenScale = isBrightBg ? 0.95 : 0.42;
+    const sheenScale = (isBrightBg ? 0.95 : 0.42) * Math.min(1.3, Math.max(0.25, backFoil));
     const prism = ctx.createLinearGradient(0, 0, BW, BH);
     prism.addColorStop(0.00, `rgba(255, 224, 150, ${(0.18 * sheenScale).toFixed(3)})`);
     prism.addColorStop(0.28, `rgba(255, 130, 224, ${(0.24 * sheenScale).toFixed(3)})`);
@@ -1458,16 +1478,9 @@ export function renderCardBackToCanvas(canvas, card, cutoutImg = null, scale = 2
     prism.addColorStop(1.00, `rgba(255, 178, 165, ${(0.18 * sheenScale).toFixed(3)})`);
     ctx.fillStyle = prism;
     ctx.fillRect(0, 0, BW, BH);
-
-    const ray1 = ctx.createLinearGradient(BW * 0.08, 0, BW * 0.88, BH);
-    ray1.addColorStop(0.32, 'rgba(255,255,255,0)');
-    ray1.addColorStop(0.50, `rgba(255,255,255,${(isBrightBg ? 0.22 : 0.14).toFixed(3)})`);
-    ray1.addColorStop(0.68, 'rgba(255,255,255,0)');
-    ctx.fillStyle = ray1;
-    ctx.fillRect(0, 0, BW, BH);
     ctx.restore();
 
-    // 3. Edge vignette & thin inner filigree frame (keeps top/bottom seal contrast crisp)
+    // 3. Edge vignette & filigree frame
     const vig = ctx.createRadialGradient(BW * 0.5, BH * 0.48, Math.min(BW, BH) * 0.24, BW * 0.5, BH * 0.5, Math.max(BW, BH) * 0.72);
     vig.addColorStop(0, 'rgba(0,0,0,0)');
     vig.addColorStop(1, isBrightBg ? 'rgba(60,40,12,0.16)' : 'rgba(2,4,10,0.48)');
@@ -1479,28 +1492,32 @@ export function renderCardBackToCanvas(canvas, card, cutoutImg = null, scale = 2
     ctx.lineWidth = 1.2;
     ctx.stroke();
 
-    // 4. Enlarged full-body pet cutout (centered spotlight showcase)
+    // 4. 背面独立平移/缩放的大画幅萌宠主体
+    const backOx = Math.max(-0.5, Math.min(0.5, Number(card.backSubjectOffsetX || 0)));
+    const backOy = Math.max(-0.5, Math.min(0.5, Number(card.backSubjectOffsetY || 0)));
+    const backSc = Math.max(0.6, Math.min(2.2, Number(card.backSubjectScale || 1)));
     const hasCutout = cutoutImg && (cutoutImg.naturalWidth || cutoutImg.width) > 0;
     if (hasCutout) {
       const iw = cutoutImg.naturalWidth || cutoutImg.width;
       const ih = cutoutImg.naturalHeight || cutoutImg.height;
       const availW = BW - 42;
       const availH = BH - (isLandscape ? 58 : 78);
-      const fitScale = Math.min(availW / iw, availH / ih);
+      const fitScale = Math.min(availW / iw, availH / ih) * backSc;
       const dw = iw * fitScale;
       const dh = ih * fitScale;
-      const dx = (BW - dw) * 0.5;
-      const dy = (BH - dh) * 0.5 + (isLandscape ? 2 : -2);
+      const dx = (BW - dw) * 0.5 + backOx * BW;
+      const dy = (BH - dh) * 0.5 + (isLandscape ? 2 : -2) + backOy * BH;
 
-      // Focused spotlight aura behind pet body without washing out corner contrast
       const auraR = Math.max(dw, dh) * 0.52;
-      const aura = ctx.createRadialGradient(BW * 0.5, BH * 0.47, 10, BW * 0.5, BH * 0.47, auraR);
+      const auraCx = BW * 0.5 + backOx * BW * 0.5;
+      const auraCy = BH * 0.47 + backOy * BH * 0.5;
+      const aura = ctx.createRadialGradient(auraCx, auraCy, 10, auraCx, auraCy, auraR);
       aura.addColorStop(0, isBrightBg ? 'rgba(255, 255, 255, 0.70)' : 'rgba(220, 244, 255, 0.36)');
       aura.addColorStop(0.55, isBrightBg ? 'rgba(255, 244, 198, 0.24)' : 'rgba(130, 210, 255, 0.14)');
       aura.addColorStop(1, 'rgba(255, 255, 255, 0)');
       ctx.fillStyle = aura;
       ctx.beginPath();
-      ctx.arc(BW * 0.5, BH * 0.47, auraR, 0, Math.PI * 2);
+      ctx.arc(auraCx, auraCy, auraR, 0, Math.PI * 2);
       ctx.fill();
 
       ctx.save();
@@ -1519,7 +1536,7 @@ export function renderCardBackToCanvas(canvas, card, cutoutImg = null, scale = 2
       ctx.restore();
     }
 
-    // 5. Minimalist Top Archive Header + Bottom Official CatchPet Orb Icon Seal & QR (auto contrast ink)
+    // 5. 顶底铭牌（自定义宠物名 + 生成卡片时间 + 街道级隐私定位，绝不显示 63×88mm）
     const primaryTextInk = isBrightBg ? 'rgba(32, 22, 8, 0.88)' : 'rgba(248, 250, 255, 0.94)';
     const secondaryTextInk = isBrightBg ? 'rgba(48, 32, 10, 0.74)' : 'rgba(218, 230, 252, 0.82)';
 
@@ -1527,24 +1544,31 @@ export function renderCardBackToCanvas(canvas, card, cutoutImg = null, scale = 2
     ctx.shadowColor = isBrightBg ? 'rgba(255, 250, 232, 0.65)' : 'rgba(4, 8, 18, 0.65)';
     ctx.shadowBlur = 4;
 
+    const leftStart = card.backBadgeIcon && card.backBadgeIcon !== 'auto' ? 38 : 24;
+    if (card.backBadgeIcon && card.backBadgeIcon !== 'auto') {
+      drawBadgeVector(ctx, badgeId, 28, 29, 7.5, isBrightBg ? '#9a6410' : '#ffd866');
+    }
     ctx.fillStyle = primaryTextInk;
     ctx.font = `800 8.5px ${MONO_STACK}`;
     ctx.textAlign = 'left';
     ctx.textBaseline = 'middle';
-    ctx.fillText(`CATCHPET · ${getCardDisplayTitle(card)}`, 24, 29);
+    ctx.fillText(`CATCHPET · ${getCardDisplayTitle(card)}`, leftStart, 29);
 
     ctx.textAlign = 'right';
     ctx.font = `700 8px ${FONT_STACK}`;
     ctx.fillStyle = secondaryTextInk;
-    ctx.fillText(card.breedName || '全息萌宠典藏', BW - 24, 29);
+    const topRightText = card.locationEnabled
+      ? `📍 ${sanitizeStreetLocation(card.locationName)}`
+      : (card.breedName || '全息萌宠典藏');
+    ctx.fillText(topRightText, BW - 24, 29);
     ctx.restore();
 
-    const badgeD = 38;
+    const badgeD = isLandscape ? 34 : 38;
     const badgeR = badgeD * 0.5;
     const bx = 22 + badgeR;
-    const by = BH - 21 - badgeR;
+    const by = BH - (isLandscape ? 18 : 21) - badgeR;
 
-    // 嵌入官方「双宠星环抓宠球」微章图标（外环精简、内芯放大清晰呈现双宠 icon）
+    // 官方双宠星环抓宠球微章
     ctx.save();
     const glowGrad = ctx.createRadialGradient(bx, by, badgeR * 0.25, bx, by, badgeR * 1.35);
     glowGrad.addColorStop(0, 'rgba(255, 226, 128, 0.55)');
@@ -1554,7 +1578,6 @@ export function renderCardBackToCanvas(canvas, card, cutoutImg = null, scale = 2
     ctx.arc(bx, by, badgeR * 1.35, 0, Math.PI * 2);
     ctx.fill();
 
-    // 精灵球外圈红白渐变边框
     ctx.beginPath();
     ctx.arc(bx, by, badgeR, Math.PI, 0, false);
     ctx.closePath();
@@ -1567,18 +1590,15 @@ export function renderCardBackToCanvas(canvas, card, cutoutImg = null, scale = 2
     ctx.fillStyle = makeLinearGrad(ctx, bx - badgeR, by, bx + badgeR, by + badgeR, ['#f4f7fc', '#b6c2d6']);
     ctx.fill();
 
-    // 中腰暗金分割带
     ctx.fillStyle = '#101624';
     ctx.fillRect(bx - badgeR, by - 2.2, badgeD, 4.4);
 
-    // 外圈金框
     ctx.beginPath();
     ctx.arc(bx, by, badgeR, 0, Math.PI * 2);
     ctx.strokeStyle = '#d49f2a';
     ctx.lineWidth = 1.6;
     ctx.stroke();
 
-    // 内芯完整呈现官方双宠星环图标 (assets/app-icon.png)
     const coreR = badgeR * 0.78;
     ctx.beginPath();
     ctx.arc(bx, by, coreR + 1.4, 0, Math.PI * 2);
@@ -1611,14 +1631,14 @@ export function renderCardBackToCanvas(canvas, card, cutoutImg = null, scale = 2
     ctx.stroke();
     ctx.restore();
 
-    // 图标右侧印章文字（微透明认证銘牌底衬，保证无论落于深浅毛发或炫彩背景上皆清晰锐利）
+    // 图标右侧印章文字（生成卡片时间替代旧版 63×88mm）
     const textX = bx + badgeR + 8;
     const titleStr = '抓宠大作战 · CATCHPET';
-    const subStr = `${card.serialNumber || '001/165 ★'} · 63×88mm`;
+    const subStr = `${card.serialNumber || '001/165 ★'} · ${generatedTimeStr}`;
     ctx.save();
     ctx.font = `800 8.5px ${FONT_STACK}`;
     const w1 = ctx.measureText(titleStr).width;
-    ctx.font = `700 7.2px ${MONO_STACK}`;
+    ctx.font = `700 7.0px ${MONO_STACK}`;
     const w2 = ctx.measureText(subStr).width;
     const pillW = Math.max(w1, w2) + 14;
     const pillH = 26;
@@ -1635,15 +1655,15 @@ export function renderCardBackToCanvas(canvas, card, cutoutImg = null, scale = 2
     ctx.fillText(titleStr, textX + 2, by - 5.5);
 
     ctx.fillStyle = secondaryTextInk;
-    ctx.font = `700 7.2px ${MONO_STACK}`;
+    ctx.font = `700 7.0px ${MONO_STACK}`;
     ctx.fillText(subStr, textX + 2, by + 6.5);
     ctx.restore();
 
     const showQR = card.showBackQRCode !== false;
     if (showQR) {
-      const qSize = 40;
+      const qSize = isLandscape ? 42 : 40;
       const qx = BW - 22 - qSize;
-      const qy = BH - 21 - qSize;
+      const qy = BH - (isLandscape ? 18 : 21) - qSize;
 
       roundPath(ctx, qx, qy, qSize, qSize, 6);
       ctx.fillStyle = 'rgba(250, 247, 238, 0.96)';
@@ -1798,8 +1818,9 @@ export function renderCardBackToCanvas(canvas, card, cutoutImg = null, scale = 2
   ctx.fillText(`${card.serialNumber || '001/165 ★'} · 性格 ${(card.personalityTag || card.abilityName || '元气粘人').slice(0, 6)}`, W * 0.5, boxY + 63);
 
   ctx.fillStyle = 'rgba(185, 198, 223, 0.78)';
-  ctx.font = `500 9px ${FONT_STACK}`;
-  ctx.fillText(`爱好：${(card.hobbyTag || card.attackName || '晒太阳贴贴').slice(0, 12)} · ${card.locationName || '抓宠大作战'}`, W * 0.5, boxY + 80);
+  ctx.font = `500 8.6px ${FONT_STACK}`;
+  const backLoc = card.locationEnabled ? sanitizeStreetLocation(card.locationName) : '保密街区';
+  ctx.fillText(`${generatedTimeStr} · ${backLoc}`, W * 0.5, boxY + 80);
 
   const showQR = card.showBackQRCode !== false;
   if (showQR) {
@@ -1849,7 +1870,7 @@ export async function exportCard4KBlob(card, cutoutImg, { side = 'front' } = {})
   const printScale = CARD_EXPORT_PX_W / CARD_LOGICAL_W; // exact 3024 x 4224 (63mm x 88mm)
   if (side === 'back') {
     const emblem = await loadImageCached('assets/app-icon.png');
-    renderCardBackToCanvas(offscreen, card, resolvedImg, printScale, emblem);
+    renderCardBackToCanvas(offscreen, card, resolvedImg, printScale, emblem, { presentUpright: true });
   } else {
     renderCardFrontToCanvas(offscreen, card, resolvedImg, printScale);
   }

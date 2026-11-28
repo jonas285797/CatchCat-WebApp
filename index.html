@@ -239,6 +239,16 @@
               </div>
             </div>
 
+            <!-- 正反面独立切换条 + 横版卡背一键横置 -->
+            <div class="studio-face-bar" id="studio-face-bar">
+              <div class="studio-face-group">
+                <button type="button" class="face-pill is-active" id="btn-face-front">正面设计</button>
+                <button type="button" class="face-pill" id="btn-face-back">背面设计</button>
+              </div>
+              <button type="button" class="face-pill face-pill--jade" id="btn-toggle-landscape" hidden>卡片横置</button>
+              <span class="face-hint-label" id="studio-face-hint">当前仅调正面</span>
+            </div>
+
             <!-- 快捷切换 4 只官方高精抠图猫样素材（移动端默认由右上角“素材”切换显示） -->
             <div class="sample-strip" id="studio-sample-strip" aria-label="快捷猫样素材"></div>
           </div>
@@ -409,6 +419,24 @@
                     <input type="checkbox" id="chk-back-qr" checked>
                     <span>卡背展示「扫码直达制同款」二维码</span>
                   </label>
+
+                  <div class="field-row" style="margin-top:6px; padding-top:8px; border-top:1px solid var(--border);">
+                    <div class="slider-card__row">
+                      <span class="field-label">生成卡片时间（卡背自动显示）</span>
+                      <strong class="mono-val" id="studio-generated-time">—</strong>
+                    </div>
+                  </div>
+
+                  <label class="ai-checkbox">
+                    <input type="checkbox" id="chk-location-enabled">
+                    <span>显示街区定位（仅精确到街道 · 隐藏门牌号保护宠物安全）</span>
+                  </label>
+                  <div class="field-row" id="studio-location-row" hidden>
+                    <div class="street-loc-row">
+                      <input type="text" id="input-card-location" maxlength="20" placeholder="仅填街道名，如 朝阳三里屯街道">
+                      <button type="button" class="btn-chip" id="btn-request-street-loc">街区定位</button>
+                    </div>
+                  </div>
                 </div>
               </div>
 
@@ -583,7 +611,7 @@
           <!-- 闪卡视图顶部筛选栏（搜索 · 收藏 · 排序 + 维度切换 + 次级胶囊） -->
           <div class="dex-toolbar" id="dex-cards-toolbar">
             <div class="dex-search-sort-row">
-              <input type="search" id="dex-search" placeholder="搜昵称、品种、花色或街区…">
+              <input type="search" id="dex-search" placeholder="搜昵称、物种、品种或街区…">
               <button type="button" class="dex-tool-pill" id="btn-dex-fav" aria-pressed="false">♡ 收藏</button>
               <select id="dex-sort-select" class="dex-sort-select" aria-label="排序方式">
                 <option value="newest">⇅ 最新收录</option>
@@ -595,11 +623,11 @@
 
             <div class="dex-dimension-bar" id="dex-dimension-bar">
               <button type="button" class="dex-dim-pill is-active" data-dim="rarity">品阶等级</button>
-              <button type="button" class="dex-dim-pill" data-dim="breed">品种谱系</button>
-              <button type="button" class="dex-dim-pill" data-dim="coat">相猫经花色</button>
+              <button type="button" class="dex-dim-pill" data-dim="species">品种等级</button>
             </div>
 
             <div class="dex-subfilter-bar" id="dex-subfilter-bar"></div>
+            <div class="dex-subfilter-bar" id="dex-breed-subfilter-bar" hidden></div>
           </div>
 
           <!-- 52 品种全图鉴墙（切到「全套图鉴名录」显示） -->
@@ -877,9 +905,13 @@
           <input type="text" id="edit-card-flavor" maxlength="48">
         </div>
 
+        <label class="ai-checkbox" style="margin-bottom:4px;">
+          <input type="checkbox" id="edit-location-enabled">
+          <span>显示街区定位（仅精确到街道 · 自动隐藏门牌号）</span>
+        </label>
         <div class="field-row two-col">
           <div>
-            <label for="edit-card-location">发现地点 / 馆藏印记</label>
+            <label for="edit-card-location">街道位置（不填门牌号）</label>
             <input type="text" id="edit-card-location" maxlength="20">
           </div>
           <div>
