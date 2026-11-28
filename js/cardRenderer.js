@@ -4,9 +4,11 @@ import {
   BACKGROUND_PRESETS,
   FX_PRESETS,
   BADGE_PRESETS,
-  resolveAdaptiveFX
-} from './presets.js?v=20261127c';
-import { drawQRToCanvas } from './qr.js?v=20261127c';
+  resolveAdaptiveFX,
+  resolveSmartBackgroundForPet
+} from './presets.js?v=20261128a';
+import { drawQRToCanvas } from './qr.js?v=20261128a';
+import { analyzeCutoutMoodMetrics } from './ai.js?v=20261128a';
 
 export const CARD_MM_W = 63;
 export const CARD_MM_H = 88;
@@ -147,17 +149,9 @@ export function resolveEffectiveBorderId(card) {
   return map[card.energyType] || 'classicGold';
 }
 
-export function resolveEffectiveBgId(card) {
-  if (card.backgroundStyle && card.backgroundStyle !== 'auto') return card.backgroundStyle;
-  const map = {
-    food: 'sunburstArena',
-    swift: 'emeraldForest',
-    brawl: 'cosmosNebula',
-    charm: 'sakuraPastel',
-    dark: 'cosmosNebula',
-    normal: 'frozenCrystal'
-  };
-  return map[card.energyType] || 'sunburstArena';
+export function resolveEffectiveBgId(card, cutoutImg = null) {
+  const metrics = cutoutImg ? analyzeCutoutMoodMetrics(cutoutImg) : null;
+  return resolveSmartBackgroundForPet(card, metrics);
 }
 
 export function resolveEffectiveFXId(card) {
@@ -378,13 +372,15 @@ function drawFourPointStar(ctx, cx, cy, r, innerRatio = 0.26) {
   ctx.fill();
 }
 
-function drawBackgroundStage(ctx, bgId, rect, energy) {
+function drawBackgroundStage(ctx, bgId, rect, energy, options = {}) {
   const { x, y, w, h } = rect;
+  const radius = options.radius ?? 8;
+  const isBack = Boolean(options.isBack);
   const preset = BACKGROUND_PRESETS.find((b) => b.id === bgId) || BACKGROUND_PRESETS[1];
   const cols = preset.colors;
 
   ctx.save();
-  roundPath(ctx, x, y, w, h, 8);
+  roundPath(ctx, x, y, w, h, radius);
   ctx.clip();
 
   // Base gradient fill
@@ -392,27 +388,208 @@ function drawBackgroundStage(ctx, bgId, rect, energy) {
   ctx.fillRect(x, y, w, h);
 
   const cx = x + w * 0.5;
-  const cy = y + h * 0.54;
+  const cy = y + h * (isBack ? 0.48 : 0.54);
 
-  if (bgId === 'sunburstArena') {
-    const rayCount = 18;
+  if (bgId === 'sunburstArena' || bgId === 'solarCelebration') {
+    const isSolar = bgId === 'solarCelebration';
+    const rayCount = isSolar ? 22 : 18;
+    const focusY = isSolar ? y + h * 0.44 : cy;
     for (let i = 0; i < rayCount; i += 1) {
       const a0 = (i * Math.PI * 2) / rayCount;
       const a1 = a0 + Math.PI / rayCount;
       ctx.beginPath();
-      ctx.moveTo(cx, cy);
-      ctx.lineTo(cx + Math.cos(a0) * w, cy + Math.sin(a0) * w);
-      ctx.lineTo(cx + Math.cos(a1) * w, cy + Math.sin(a1) * w);
+      ctx.moveTo(cx, focusY);
+      ctx.lineTo(cx + Math.cos(a0) * Math.max(w, h) * 1.1, focusY + Math.sin(a0) * Math.max(w, h) * 1.1);
+      ctx.lineTo(cx + Math.cos(a1) * Math.max(w, h) * 1.1, focusY + Math.sin(a1) * Math.max(w, h) * 1.1);
       ctx.closePath();
-      ctx.fillStyle = i % 2 === 0 ? 'rgba(255,255,255,0.16)' : 'rgba(255,140,20,0.08)';
+      ctx.fillStyle = isSolar
+        ? (i % 2 === 0 ? 'rgba(255,252,216,0.20)' : 'rgba(255,96,0,0.11)')
+        : (i % 2 === 0 ? 'rgba(255,255,255,0.16)' : 'rgba(255,140,20,0.08)');
       ctx.fill();
     }
-    const g = ctx.createRadialGradient(cx, cy, 4, cx, cy, w * 0.52);
-    g.addColorStop(0, 'rgba(255,252,210,0.88)');
-    g.addColorStop(0.55, 'rgba(255,204,72,0.22)');
+    const g = ctx.createRadialGradient(cx, focusY, 4, cx, focusY, Math.max(w, h) * 0.62);
+    g.addColorStop(0, isSolar ? 'rgba(255,254,228,0.92)' : 'rgba(255,252,210,0.88)');
+    g.addColorStop(0.5, isSolar ? 'rgba(255,186,44,0.34)' : 'rgba(255,204,72,0.22)');
     g.addColorStop(1, 'rgba(255,180,40,0)');
     ctx.fillStyle = g;
     ctx.fillRect(x, y, w, h);
+    if (isSolar) {
+      [[0.16, 0.20, 4], [0.84, 0.24, 5], [0.22, 0.74, 4.5], [0.80, 0.78, 3.8]].forEach(([sx, sy, sr]) => {
+        ctx.fillStyle = 'rgba(255, 250, 224, 0.75)';
+        drawFourPointStar(ctx, x + w * sx, y + h * sy, sr * (isBack ? 1.5 : 1), 0.26);
+      });
+    }
+  } else if (bgId === 'waveRiderCyan') {
+    const sky = ctx.createRadialGradient(cx, y + h * 0.24, 8, cx, cy, Math.max(w, h) * 0.68);
+    sky.addColorStop(0, 'rgba(220, 252, 255, 0.85)');
+    sky.addColorStop(0.45, 'rgba(24, 186, 246, 0.25)');
+    sky.addColorStop(1, 'rgba(2, 74, 176, 0.28)');
+    ctx.fillStyle = sky;
+    ctx.fillRect(x, y, w, h);
+    // Flowing aqua wave ribbons
+    [0.24, 0.44, 0.66, 0.82].forEach((wy, idx) => {
+      ctx.beginPath();
+      ctx.moveTo(x - 10, y + h * wy);
+      ctx.bezierCurveTo(
+        x + w * 0.3, y + h * (wy - 0.14),
+        x + w * 0.7, y + h * (wy + 0.14),
+        x + w + 10, y + h * (wy - 0.04)
+      );
+      ctx.lineTo(x + w + 10, y + h + 10);
+      ctx.lineTo(x - 10, y + h + 10);
+      ctx.closePath();
+      ctx.fillStyle = idx % 2 === 0 ? 'rgba(255, 255, 255, 0.14)' : 'rgba(6, 108, 220, 0.18)';
+      ctx.fill();
+    });
+    ctx.fillStyle = 'rgba(255,255,255,0.82)';
+    [[0.18, 0.22, 3.4], [0.82, 0.18, 4.2], [0.74, 0.64, 3.2], [0.22, 0.76, 3.0]].forEach(([sx, sy, sr]) => {
+      drawFourPointStar(ctx, x + w * sx, y + h * sy, sr * (isBack ? 1.4 : 1), 0.24);
+    });
+  } else if (bgId === 'emeraldGale') {
+    const core = ctx.createRadialGradient(cx, cy, 8, cx, cy, Math.max(w, h) * 0.65);
+    core.addColorStop(0, 'rgba(176, 255, 214, 0.78)');
+    core.addColorStop(0.5, 'rgba(11, 178, 128, 0.28)');
+    core.addColorStop(1, 'rgba(3, 30, 26, 0.46)');
+    ctx.fillStyle = core;
+    ctx.fillRect(x, y, w, h);
+    ctx.save();
+    for (let i = 0; i < 6; i += 1) {
+      ctx.beginPath();
+      const baseR = w * (0.28 + i * 0.11);
+      ctx.arc(cx, cy, baseR, i * 0.55 - 0.8, i * 0.55 + 1.15);
+      ctx.strokeStyle = i % 2 === 0 ? 'rgba(164, 255, 214, 0.42)' : 'rgba(42, 238, 172, 0.28)';
+      ctx.lineWidth = isBack ? 3.2 : 2.2;
+      ctx.stroke();
+    }
+    ctx.restore();
+    ctx.fillStyle = 'rgba(205, 255, 228, 0.86)';
+    [[0.14, 0.26, 3.8], [0.85, 0.20, 4.5], [0.20, 0.80, 3.2]].forEach(([sx, sy, sr]) => {
+      drawFourPointStar(ctx, x + w * sx, y + h * sy, sr * (isBack ? 1.4 : 1), 0.22);
+    });
+  } else if (bgId === 'rainbowPrismHolo') {
+    const spectrum = ctx.createLinearGradient(x, y, x + w, y + h);
+    spectrum.addColorStop(0.0, '#ff86c8');
+    spectrum.addColorStop(0.22, '#ffd65c');
+    spectrum.addColorStop(0.46, '#6df4b8');
+    spectrum.addColorStop(0.70, '#59d2ff');
+    spectrum.addColorStop(1.0, '#c77eff');
+    ctx.fillStyle = spectrum;
+    ctx.fillRect(x, y, w, h);
+    const pearl = ctx.createRadialGradient(cx, cy, 8, cx, cy, Math.max(w, h) * 0.58);
+    pearl.addColorStop(0, 'rgba(255,255,255,0.72)');
+    pearl.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = pearl;
+    ctx.fillRect(x, y, w, h);
+    // Diagonal prism facets
+    ctx.save();
+    ctx.globalAlpha = 0.24;
+    for (let s = -h; s < w + h; s += 34) {
+      ctx.fillStyle = s % 68 === 0 ? '#ffffff' : 'rgba(255, 240, 175, 0.75)';
+      ctx.beginPath();
+      ctx.moveTo(x + s, y);
+      ctx.lineTo(x + s + 12, y);
+      ctx.lineTo(x + s - h * 0.45 + 12, y + h);
+      ctx.lineTo(x + s - h * 0.45, y + h);
+      ctx.closePath();
+      ctx.fill();
+    }
+    ctx.restore();
+    ctx.fillStyle = 'rgba(255,255,255,0.92)';
+    [[0.16, 0.18, 5], [0.84, 0.22, 6], [0.22, 0.72, 4.5], [0.78, 0.76, 5.2], [0.5, 0.14, 3.8]].forEach(([sx, sy, sr]) => {
+      drawFourPointStar(ctx, x + w * sx, y + h * sy, sr * (isBack ? 1.35 : 1), 0.24);
+    });
+  } else if (bgId === 'silkChampagne') {
+    const silk = ctx.createRadialGradient(cx, y + h * 0.38, 12, cx, cy, Math.max(w, h) * 0.68);
+    silk.addColorStop(0, 'rgba(255, 253, 244, 0.94)');
+    silk.addColorStop(0.52, 'rgba(246, 212, 138, 0.35)');
+    silk.addColorStop(1, 'rgba(196, 138, 48, 0.25)');
+    ctx.fillStyle = silk;
+    ctx.fillRect(x, y, w, h);
+    // Flowing golden silk waves (m6_modal inspiration)
+    for (let i = 0; i < 4; i += 1) {
+      const yOff = y + h * (0.22 + i * 0.18);
+      ctx.beginPath();
+      ctx.moveTo(x - 10, yOff);
+      ctx.bezierCurveTo(x + w * 0.28, yOff - 28, x + w * 0.68, yOff + 32, x + w + 10, yOff - 10);
+      ctx.strokeStyle = i % 2 === 0 ? 'rgba(255, 248, 220, 0.62)' : 'rgba(226, 174, 72, 0.34)';
+      ctx.lineWidth = isBack ? 14 : 9;
+      ctx.stroke();
+    }
+    [[0.20, 0.26, 24], [0.78, 0.30, 20], [0.28, 0.74, 18]].forEach(([bx, by, br]) => {
+      ctx.fillStyle = 'rgba(255, 252, 232, 0.26)';
+      ctx.beginPath();
+      ctx.arc(x + w * bx, y + h * by, br, 0, Math.PI * 2);
+      ctx.fill();
+    });
+  } else if (bgId === 'azurePaperGlow') {
+    // m6a section 4 textured royal cobalt paper + golden stardust
+    const royal = ctx.createRadialGradient(cx, cy, 8, cx, cy, Math.max(w, h) * 0.64);
+    royal.addColorStop(0, 'rgba(116, 176, 255, 0.56)');
+    royal.addColorStop(0.55, 'rgba(32, 86, 198, 0.28)');
+    royal.addColorStop(1, 'rgba(8, 24, 72, 0.42)');
+    ctx.fillStyle = royal;
+    ctx.fillRect(x, y, w, h);
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.06)';
+    ctx.lineWidth = 0.7;
+    for (let d = -h; d < w + h; d += 8) {
+      ctx.beginPath();
+      ctx.moveTo(x + d, y);
+      ctx.lineTo(x + d + 20, y + h);
+      ctx.stroke();
+    }
+    ctx.fillStyle = 'rgba(255, 232, 162, 0.85)';
+    [[0.16, 0.20, 3.6], [0.84, 0.24, 4.4], [0.20, 0.76, 3.2], [0.80, 0.72, 3.8]].forEach(([sx, sy, sr]) => {
+      drawFourPointStar(ctx, x + w * sx, y + h * sy, sr * (isBack ? 1.45 : 1), 0.25);
+    });
+  } else if (bgId === 'cyberNeonViolet') {
+    // m6a night neon violet-magenta beams
+    const n1 = ctx.createRadialGradient(x + w * 0.26, y + h * 0.28, 6, x + w * 0.26, y + h * 0.28, Math.max(w, h) * 0.58);
+    n1.addColorStop(0, 'rgba(255, 68, 198, 0.64)');
+    n1.addColorStop(1, 'rgba(255, 68, 198, 0)');
+    ctx.fillStyle = n1;
+    ctx.fillRect(x, y, w, h);
+    const n2 = ctx.createRadialGradient(x + w * 0.78, y + h * 0.72, 6, x + w * 0.78, y + h * 0.72, Math.max(w, h) * 0.56);
+    n2.addColorStop(0, 'rgba(54, 214, 255, 0.52)');
+    n2.addColorStop(1, 'rgba(54, 214, 255, 0)');
+    ctx.fillStyle = n2;
+    ctx.fillRect(x, y, w, h);
+    // Neon diagonal prism stripes
+    ctx.strokeStyle = 'rgba(255, 134, 232, 0.34)';
+    ctx.lineWidth = isBack ? 2.4 : 1.6;
+    [0.2, 0.5, 0.8].forEach((offset) => {
+      ctx.beginPath();
+      ctx.moveTo(x, y + h * offset);
+      ctx.lineTo(x + w, y + h * (offset - 0.26));
+      ctx.stroke();
+    });
+    ctx.fillStyle = 'rgba(255, 224, 255, 0.9)';
+    [[0.15, 0.22, 4.2], [0.85, 0.25, 4.8], [0.76, 0.78, 3.8]].forEach(([sx, sy, sr]) => {
+      drawFourPointStar(ctx, x + w * sx, y + h * sy, sr * (isBack ? 1.4 : 1), 0.22);
+    });
+  } else if (bgId === 'abyssStarlight') {
+    // m5 deep abyss indigo glow & bioluminescent twin rings
+    const abyss = ctx.createRadialGradient(cx, cy, 8, cx, cy, Math.max(w, h) * 0.62);
+    abyss.addColorStop(0, 'rgba(72, 222, 255, 0.58)');
+    abyss.addColorStop(0.48, 'rgba(24, 72, 168, 0.30)');
+    abyss.addColorStop(1, 'rgba(4, 8, 24, 0.56)');
+    ctx.fillStyle = abyss;
+    ctx.fillRect(x, y, w, h);
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.strokeStyle = 'rgba(84, 232, 255, 0.34)';
+    ctx.lineWidth = 1.4;
+    ctx.beginPath();
+    ctx.ellipse(0, 0, w * 0.42, h * 0.18, -0.34, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.strokeStyle = 'rgba(134, 152, 255, 0.28)';
+    ctx.beginPath();
+    ctx.ellipse(0, 0, w * 0.36, h * 0.14, 0.38, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+    ctx.fillStyle = 'rgba(205, 248, 255, 0.9)';
+    [[0.16, 0.18, 3.6], [0.84, 0.22, 4.2], [0.22, 0.78, 3.0], [0.80, 0.74, 3.6]].forEach(([sx, sy, sr]) => {
+      drawFourPointStar(ctx, x + w * sx, y + h * sy, sr * (isBack ? 1.4 : 1), 0.22);
+    });
   } else if (bgId === 'emeraldForest') {
     // Misty bamboo / foliage beams
     const stalks = [0.08, 0.19, 0.78, 0.91];
@@ -420,18 +597,14 @@ function drawBackgroundStage(ctx, bgId, rect, energy) {
       ctx.fillStyle = idx % 2 === 0 ? 'rgba(9, 44, 34, 0.34)' : 'rgba(15, 78, 56, 0.28)';
       ctx.fillRect(x + w * sx, y, 8 + (idx % 2) * 5, h);
     });
-    const haze = ctx.createRadialGradient(cx, y + h * 0.25, 10, cx, cy, w * 0.6);
+    const haze = ctx.createRadialGradient(cx, y + h * 0.25, 10, cx, cy, Math.max(w, h) * 0.62);
     haze.addColorStop(0, 'rgba(205, 255, 178, 0.65)');
     haze.addColorStop(0.6, 'rgba(35, 209, 154, 0.2)');
     haze.addColorStop(1, 'rgba(8, 36, 28, 0.35)');
     ctx.fillStyle = haze;
     ctx.fillRect(x, y, w, h);
-    // Bokeh leaves
     [
-      [0.24, 0.26, 22],
-      [0.72, 0.32, 26],
-      [0.36, 0.7, 16],
-      [0.64, 0.62, 18]
+      [0.24, 0.26, 22], [0.72, 0.32, 26], [0.36, 0.7, 16], [0.64, 0.62, 18]
     ].forEach(([bx, by, br]) => {
       ctx.fillStyle = 'rgba(220, 255, 205, 0.16)';
       ctx.beginPath();
@@ -439,19 +612,18 @@ function drawBackgroundStage(ctx, bgId, rect, energy) {
       ctx.fill();
     });
   } else if (bgId === 'cosmosNebula') {
-    const neb1 = ctx.createRadialGradient(x + w * 0.28, y + h * 0.32, 6, x + w * 0.28, y + h * 0.32, w * 0.56);
+    const neb1 = ctx.createRadialGradient(x + w * 0.28, y + h * 0.32, 6, x + w * 0.28, y + h * 0.32, Math.max(w, h) * 0.58);
     neb1.addColorStop(0, 'rgba(130, 82, 255, 0.65)');
     neb1.addColorStop(1, 'rgba(130, 82, 255, 0)');
     ctx.fillStyle = neb1;
     ctx.fillRect(x, y, w, h);
 
-    const neb2 = ctx.createRadialGradient(x + w * 0.76, y + h * 0.68, 8, x + w * 0.76, y + h * 0.68, w * 0.52);
+    const neb2 = ctx.createRadialGradient(x + w * 0.76, y + h * 0.68, 8, x + w * 0.76, y + h * 0.68, Math.max(w, h) * 0.54);
     neb2.addColorStop(0, 'rgba(45, 206, 245, 0.45)');
     neb2.addColorStop(1, 'rgba(45, 206, 245, 0)');
     ctx.fillStyle = neb2;
     ctx.fillRect(x, y, w, h);
 
-    // Planetary orbits
     ctx.save();
     ctx.translate(cx, cy);
     ctx.rotate(-0.24);
@@ -466,21 +638,19 @@ function drawBackgroundStage(ctx, bgId, rect, energy) {
     ctx.stroke();
     ctx.restore();
 
-    // Starfield
     const stars = [
       [0.14, 0.18, 3.2], [0.84, 0.22, 4.2], [0.22, 0.76, 3.0],
       [0.78, 0.8, 3.6], [0.62, 0.16, 2.5], [0.1, 0.5, 2.8], [0.9, 0.48, 2.6]
     ];
     ctx.fillStyle = 'rgba(255,255,255,0.88)';
-    stars.forEach(([sx, sy, sr]) => drawFourPointStar(ctx, x + w * sx, y + h * sy, sr, 0.24));
+    stars.forEach(([sx, sy, sr]) => drawFourPointStar(ctx, x + w * sx, y + h * sy, sr * (isBack ? 1.3 : 1), 0.24));
   } else if (bgId === 'sakuraPastel') {
-    const glow = ctx.createRadialGradient(cx, y + h * 0.4, 8, cx, cy, w * 0.6);
+    const glow = ctx.createRadialGradient(cx, y + h * 0.4, 8, cx, cy, Math.max(w, h) * 0.62);
     glow.addColorStop(0, 'rgba(255, 252, 254, 0.92)');
     glow.addColorStop(0.55, 'rgba(255, 198, 225, 0.35)');
     glow.addColorStop(1, 'rgba(219, 110, 187, 0.25)');
     ctx.fillStyle = glow;
     ctx.fillRect(x, y, w, h);
-    // Petals
     const petals = [
       [0.15, 0.24, 0.4, 7], [0.82, 0.2, -0.5, 8], [0.22, 0.68, 0.9, 6],
       [0.76, 0.62, -0.8, 7], [0.46, 0.15, 0.2, 5.5], [0.64, 0.82, 1.1, 6]
@@ -496,13 +666,12 @@ function drawBackgroundStage(ctx, bgId, rect, energy) {
       ctx.restore();
     });
   } else if (bgId === 'flameCanyon') {
-    const lava = ctx.createRadialGradient(cx, y + h * 0.82, 10, cx, y + h * 0.65, w * 0.68);
+    const lava = ctx.createRadialGradient(cx, y + h * 0.82, 10, cx, y + h * 0.65, Math.max(w, h) * 0.68);
     lava.addColorStop(0, 'rgba(255, 214, 92, 0.9)');
     lava.addColorStop(0.45, 'rgba(235, 68, 22, 0.5)');
     lava.addColorStop(1, 'rgba(34, 4, 8, 0.2)');
     ctx.fillStyle = lava;
     ctx.fillRect(x, y, w, h);
-    // Silhouetted rock spires
     ctx.fillStyle = 'rgba(24, 6, 8, 0.65)';
     ctx.beginPath();
     ctx.moveTo(x, y + h);
@@ -515,7 +684,6 @@ function drawBackgroundStage(ctx, bgId, rect, energy) {
     ctx.lineTo(x + w, y + h);
     ctx.closePath();
     ctx.fill();
-    // Rising embers
     ctx.fillStyle = 'rgba(255, 224, 112, 0.9)';
     [[0.18, 0.38, 2.2], [0.28, 0.22, 1.8], [0.76, 0.32, 2.5], [0.84, 0.54, 1.9], [0.58, 0.16, 1.7]].forEach(([ex, ey, er]) => {
       ctx.beginPath();
@@ -523,13 +691,12 @@ function drawBackgroundStage(ctx, bgId, rect, energy) {
       ctx.fill();
     });
   } else if (bgId === 'frozenCrystal') {
-    const ice = ctx.createRadialGradient(cx, cy * 0.95, 8, cx, cy, w * 0.6);
+    const ice = ctx.createRadialGradient(cx, cy * 0.95, 8, cx, cy, Math.max(w, h) * 0.62);
     ice.addColorStop(0, 'rgba(232, 251, 255, 0.9)');
     ice.addColorStop(0.55, 'rgba(84, 208, 245, 0.32)');
     ice.addColorStop(1, 'rgba(22, 62, 128, 0.25)');
     ctx.fillStyle = ice;
     ctx.fillRect(x, y, w, h);
-    // Faceted ice shards
     ctx.fillStyle = 'rgba(255, 255, 255, 0.22)';
     const polyShards = [
       [[0.04, 0.22], [0.2, 0.08], [0.26, 0.36]],
@@ -547,30 +714,39 @@ function drawBackgroundStage(ctx, bgId, rect, energy) {
       ctx.fill();
     });
   } else {
-    // obsidianStudio
-    const spot = ctx.createRadialGradient(cx, y + h * 0.42, 10, cx, cy, w * 0.58);
-    spot.addColorStop(0, 'rgba(255, 255, 255, 0.18)');
-    spot.addColorStop(0.5, 'rgba(130, 152, 190, 0.08)');
-    spot.addColorStop(1, 'rgba(0, 0, 0, 0.48)');
+    // obsidianStudio enhanced with subtle mist clouds (m6a section 5 atmospheric haze)
+    const spot = ctx.createRadialGradient(cx, y + h * 0.42, 10, cx, cy, Math.max(w, h) * 0.62);
+    spot.addColorStop(0, 'rgba(255, 255, 255, 0.24)');
+    spot.addColorStop(0.45, 'rgba(148, 168, 208, 0.12)');
+    spot.addColorStop(1, 'rgba(0, 0, 0, 0.52)');
     ctx.fillStyle = spot;
     ctx.fillRect(x, y, w, h);
+    [[0.24, 0.72, w * 0.28], [0.76, 0.68, w * 0.26], [0.5, 0.84, w * 0.34]].forEach(([mx, my, mr]) => {
+      const fog = ctx.createRadialGradient(x + w * mx, y + h * my, 4, x + w * mx, y + h * my, mr);
+      fog.addColorStop(0, 'rgba(210, 224, 245, 0.12)');
+      fog.addColorStop(1, 'rgba(210, 224, 245, 0)');
+      ctx.fillStyle = fog;
+      ctx.fillRect(x, y, w, h);
+    });
   }
 
-  // Stage horizon floor & grounded aura
-  const floorG = ctx.createLinearGradient(0, y + h * 0.72, 0, y + h);
-  floorG.addColorStop(0, 'rgba(0,0,0,0)');
-  floorG.addColorStop(1, 'rgba(0,0,0,0.34)');
-  ctx.fillStyle = floorG;
-  ctx.fillRect(x, y + h * 0.72, w, h * 0.28);
+  if (!isBack) {
+    // Stage horizon floor & grounded aura (front stage window only)
+    const floorG = ctx.createLinearGradient(0, y + h * 0.72, 0, y + h);
+    floorG.addColorStop(0, 'rgba(0,0,0,0)');
+    floorG.addColorStop(1, 'rgba(0,0,0,0.34)');
+    ctx.fillStyle = floorG;
+    ctx.fillRect(x, y + h * 0.72, w, h * 0.28);
 
-  const rimAura = ctx.createRadialGradient(cx, y + h * 0.85, 6, cx, y + h * 0.85, w * 0.38);
-  rimAura.addColorStop(0, 'rgba(255,255,255,0.45)');
-  rimAura.addColorStop(0.5, `${energy.orb[0]}55`);
-  rimAura.addColorStop(1, 'rgba(0,0,0,0)');
-  ctx.fillStyle = rimAura;
-  ctx.beginPath();
-  ctx.ellipse(cx, y + h * 0.86, w * 0.38, h * 0.1, 0, 0, Math.PI * 2);
-  ctx.fill();
+    const rimAura = ctx.createRadialGradient(cx, y + h * 0.85, 6, cx, y + h * 0.85, w * 0.38);
+    rimAura.addColorStop(0, 'rgba(255,255,255,0.45)');
+    rimAura.addColorStop(0.5, `${energy.orb[0]}55`);
+    rimAura.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = rimAura;
+    ctx.beginPath();
+    ctx.ellipse(cx, y + h * 0.86, w * 0.38, h * 0.1, 0, 0, Math.PI * 2);
+    ctx.fill();
+  }
 
   ctx.restore();
 }
@@ -775,7 +951,7 @@ export function renderCardFrontToCanvas(canvas, card, cutoutImg, scale = 2) {
   const energy = getEnergyConfig(card.energyType);
   const borderId = resolveEffectiveBorderId(card);
   const border = BORDER_PRESETS.find((b) => b.id === borderId) || BORDER_PRESETS[1];
-  const bgId = resolveEffectiveBgId(card);
+  const bgId = resolveEffectiveBgId(card, cutoutImg);
   const fxId = resolveEffectiveFXId(card);
   const badgeId = resolveEffectiveBadgeId(card);
   const foilIntensity = card.foilIntensity ?? 0.72;
@@ -1222,7 +1398,7 @@ export function renderCardBackToCanvas(canvas, card, cutoutImg = null, scale = 2
 
   // Outer metallic rim
   ctx.fillStyle = makeLinearGrad(ctx, 0, 0, W, H, backStyle === 'fullArtPet'
-    ? ['#fff3bd', '#e2bc5c', '#c39134', '#f7df94']
+    ? (card.borderStyle && card.borderStyle !== 'auto' ? border.grad : ['#fff3bd', '#e2bc5c', '#c39134', '#f7df94'])
     : border.grad);
   ctx.fillRect(0, 0, W, H);
 
@@ -1237,13 +1413,17 @@ export function renderCardBackToCanvas(canvas, card, cutoutImg = null, scale = 2
   roundPath(ctx, plate.x, plate.y, plate.w, plate.h, plate.r);
   ctx.clip();
 
-  // ── Variant 1 (Default): Clark-inspired Full-Art Holographic Pet Back (Portrait / Landscape) ──
+  // ── Variant 1 (Default): Vibrant Full-Art Holographic Pet Back (Portrait / Landscape) ──
   if (backStyle === 'fullArtPet') {
     const orientPref = card.cardBackOrientation || 'auto';
     const trim = measureCutoutTrimBox(cutoutImg);
     const isLandscape =
       orientPref === 'landscape' ||
       (orientPref === 'auto' && trim && trim.trimW > trim.trimH * 1.12);
+
+    const bgId = resolveEffectiveBgId(card, cutoutImg);
+    const bgPreset = BACKGROUND_PRESETS.find((b) => b.id === bgId) || BACKGROUND_PRESETS[1];
+    const isBrightBg = Boolean(bgPreset.bright);
 
     ctx.save();
     if (isLandscape) {
@@ -1255,54 +1435,39 @@ export function renderCardBackToCanvas(canvas, card, cutoutImg = null, scale = 2
     const BW = isLandscape ? H : W;
     const BH = isLandscape ? W : H;
 
-    // 1. Clean warm pearl-champagne studio radial backdrop
-    const studioBg = ctx.createRadialGradient(BW * 0.5, BH * 0.45, 18, BW * 0.5, BH * 0.48, Math.max(BW, BH) * 0.72);
-    studioBg.addColorStop(0, '#fff9e6');
-    studioBg.addColorStop(0.45, '#f0d896');
-    studioBg.addColorStop(0.85, '#c9a152');
-    studioBg.addColorStop(1, '#9c732d');
-    ctx.fillStyle = studioBg;
-    ctx.fillRect(0, 0, BW, BH);
+    // 1. Full-bleed resolved holographic expansion artwork (energetic / serene / mystic matched to pet)
+    drawBackgroundStage(ctx, bgId, { x: 0, y: 0, w: BW, h: BH }, energy, { radius: 0, isBack: true });
 
-    // 2. Soft diagonal rainbow foil sheen (inspired by Clark promo holographic texture)
+    // 2. Lush diagonal holographic rainbow prism glaze + luminous shimmer shafts (tuned per dark/bright theme)
     ctx.save();
     ctx.globalCompositeOperation = 'screen';
+    const sheenScale = isBrightBg ? 0.95 : 0.42;
     const prism = ctx.createLinearGradient(0, 0, BW, BH);
-    prism.addColorStop(0.00, 'rgba(255, 224, 150, 0.25)');
-    prism.addColorStop(0.28, 'rgba(255, 182, 232, 0.30)');
-    prism.addColorStop(0.54, 'rgba(162, 238, 255, 0.34)');
-    prism.addColorStop(0.80, 'rgba(255, 236, 158, 0.28)');
-    prism.addColorStop(1.00, 'rgba(255, 210, 175, 0.22)');
+    prism.addColorStop(0.00, `rgba(255, 224, 150, ${(0.18 * sheenScale).toFixed(3)})`);
+    prism.addColorStop(0.28, `rgba(255, 130, 224, ${(0.24 * sheenScale).toFixed(3)})`);
+    prism.addColorStop(0.54, `rgba(98, 232, 255, ${(0.28 * sheenScale).toFixed(3)})`);
+    prism.addColorStop(0.80, `rgba(255, 236, 158, ${(0.22 * sheenScale).toFixed(3)})`);
+    prism.addColorStop(1.00, `rgba(255, 178, 165, ${(0.18 * sheenScale).toFixed(3)})`);
     ctx.fillStyle = prism;
     ctx.fillRect(0, 0, BW, BH);
 
-    // Gentle sunlit diagonal shimmer shafts
-    const ray1 = ctx.createLinearGradient(BW * 0.1, 0, BW * 0.85, BH);
-    ray1.addColorStop(0.30, 'rgba(255,255,255,0)');
-    ray1.addColorStop(0.50, 'rgba(255,255,255,0.28)');
-    ray1.addColorStop(0.70, 'rgba(255,255,255,0)');
+    const ray1 = ctx.createLinearGradient(BW * 0.08, 0, BW * 0.88, BH);
+    ray1.addColorStop(0.32, 'rgba(255,255,255,0)');
+    ray1.addColorStop(0.50, `rgba(255,255,255,${(isBrightBg ? 0.22 : 0.14).toFixed(3)})`);
+    ray1.addColorStop(0.68, 'rgba(255,255,255,0)');
     ctx.fillStyle = ray1;
     ctx.fillRect(0, 0, BW, BH);
     ctx.restore();
 
-    // 3. Soft ambient stardust bokeh motes (subtle & uncluttered)
-    const bokehSpots = [
-      [0.14, 0.16, 4.5], [0.84, 0.20, 6], [0.20, 0.72, 5],
-      [0.86, 0.66, 4], [0.76, 0.36, 3], [0.16, 0.42, 3.5]
-    ];
-    bokehSpots.forEach(([fx, fy, fr]) => {
-      const bgGrad = ctx.createRadialGradient(BW * fx, BH * fy, 0, BW * fx, BH * fy, fr * 2.5);
-      bgGrad.addColorStop(0, 'rgba(255, 252, 232, 0.72)');
-      bgGrad.addColorStop(1, 'rgba(255, 252, 232, 0)');
-      ctx.fillStyle = bgGrad;
-      ctx.beginPath();
-      ctx.arc(BW * fx, BH * fy, fr * 2.5, 0, Math.PI * 2);
-      ctx.fill();
-    });
+    // 3. Edge vignette & thin inner filigree frame (keeps top/bottom seal contrast crisp)
+    const vig = ctx.createRadialGradient(BW * 0.5, BH * 0.48, Math.min(BW, BH) * 0.24, BW * 0.5, BH * 0.5, Math.max(BW, BH) * 0.72);
+    vig.addColorStop(0, 'rgba(0,0,0,0)');
+    vig.addColorStop(1, isBrightBg ? 'rgba(60,40,12,0.16)' : 'rgba(2,4,10,0.48)');
+    ctx.fillStyle = vig;
+    ctx.fillRect(0, 0, BW, BH);
 
-    // Subtle thin inner gold border line
     roundPath(ctx, 16, 16, BW - 32, BH - 32, 8);
-    ctx.strokeStyle = 'rgba(255, 250, 224, 0.70)';
+    ctx.strokeStyle = isBrightBg ? 'rgba(255, 252, 228, 0.78)' : 'rgba(255, 240, 176, 0.52)';
     ctx.lineWidth = 1.2;
     ctx.stroke();
 
@@ -1319,18 +1484,19 @@ export function renderCardBackToCanvas(canvas, card, cutoutImg = null, scale = 2
       const dx = (BW - dw) * 0.5;
       const dy = (BH - dh) * 0.5 + (isLandscape ? 2 : -2);
 
-      // Soft bright rim backlight behind pet
-      const aura = ctx.createRadialGradient(BW * 0.5, BH * 0.48, 12, BW * 0.5, BH * 0.48, Math.max(dw, dh) * 0.65);
-      aura.addColorStop(0, 'rgba(255, 255, 255, 0.72)');
-      aura.addColorStop(0.55, 'rgba(255, 244, 198, 0.25)');
+      // Focused spotlight aura behind pet body without washing out corner contrast
+      const auraR = Math.max(dw, dh) * 0.52;
+      const aura = ctx.createRadialGradient(BW * 0.5, BH * 0.47, 10, BW * 0.5, BH * 0.47, auraR);
+      aura.addColorStop(0, isBrightBg ? 'rgba(255, 255, 255, 0.70)' : 'rgba(220, 244, 255, 0.36)');
+      aura.addColorStop(0.55, isBrightBg ? 'rgba(255, 244, 198, 0.24)' : 'rgba(130, 210, 255, 0.14)');
       aura.addColorStop(1, 'rgba(255, 255, 255, 0)');
       ctx.fillStyle = aura;
       ctx.beginPath();
-      ctx.arc(BW * 0.5, BH * 0.48, Math.max(dw, dh) * 0.65, 0, Math.PI * 2);
+      ctx.arc(BW * 0.5, BH * 0.47, auraR, 0, Math.PI * 2);
       ctx.fill();
 
       ctx.save();
-      ctx.shadowColor = 'rgba(84, 52, 12, 0.28)';
+      ctx.shadowColor = isBrightBg ? 'rgba(54, 34, 8, 0.30)' : 'rgba(0, 0, 0, 0.56)';
       ctx.shadowBlur = 18;
       ctx.shadowOffsetY = 6;
       ctx.drawImage(cutoutImg, dx, dy, dw, dh);
@@ -1345,8 +1511,15 @@ export function renderCardBackToCanvas(canvas, card, cutoutImg = null, scale = 2
       ctx.restore();
     }
 
-    // 5. Minimalist Top Archive Header + Bottom Official CatchPet Orb Icon Seal & QR
-    ctx.fillStyle = 'rgba(56, 36, 8, 0.82)';
+    // 5. Minimalist Top Archive Header + Bottom Official CatchPet Orb Icon Seal & QR (auto contrast ink)
+    const primaryTextInk = isBrightBg ? 'rgba(32, 22, 8, 0.88)' : 'rgba(248, 250, 255, 0.94)';
+    const secondaryTextInk = isBrightBg ? 'rgba(48, 32, 10, 0.74)' : 'rgba(218, 230, 252, 0.82)';
+
+    ctx.save();
+    ctx.shadowColor = isBrightBg ? 'rgba(255, 250, 232, 0.65)' : 'rgba(4, 8, 18, 0.65)';
+    ctx.shadowBlur = 4;
+
+    ctx.fillStyle = primaryTextInk;
     ctx.font = `800 8.5px ${MONO_STACK}`;
     ctx.textAlign = 'left';
     ctx.textBaseline = 'middle';
@@ -1354,14 +1527,16 @@ export function renderCardBackToCanvas(canvas, card, cutoutImg = null, scale = 2
 
     ctx.textAlign = 'right';
     ctx.font = `700 8px ${FONT_STACK}`;
+    ctx.fillStyle = secondaryTextInk;
     ctx.fillText(card.breedName || '全息萌宠典藏', BW - 24, 29);
+    ctx.restore();
 
     const badgeD = 38;
     const badgeR = badgeD * 0.5;
     const bx = 22 + badgeR;
     const by = BH - 21 - badgeR;
 
-    // 嵌入上一版官方「双宠星环抓宠球」微章图标（外环精简、内芯放大清晰呈现双宠 icon）
+    // 嵌入官方「双宠星环抓宠球」微章图标（外环精简、内芯放大清晰呈现双宠 icon）
     ctx.save();
     const glowGrad = ctx.createRadialGradient(bx, by, badgeR * 0.25, bx, by, badgeR * 1.35);
     glowGrad.addColorStop(0, 'rgba(255, 226, 128, 0.55)');
@@ -1395,7 +1570,7 @@ export function renderCardBackToCanvas(canvas, card, cutoutImg = null, scale = 2
     ctx.lineWidth = 1.6;
     ctx.stroke();
 
-    // 内芯完整呈现上一版官方双宠星环图标 (assets/app-icon.png)
+    // 内芯完整呈现官方双宠星环图标 (assets/app-icon.png)
     const coreR = badgeR * 0.78;
     ctx.beginPath();
     ctx.arc(bx, by, coreR + 1.4, 0, Math.PI * 2);
@@ -1428,16 +1603,33 @@ export function renderCardBackToCanvas(canvas, card, cutoutImg = null, scale = 2
     ctx.stroke();
     ctx.restore();
 
-    // 图标右侧印章文字
+    // 图标右侧印章文字（微透明认证銘牌底衬，保证无论落于深浅毛发或炫彩背景上皆清晰锐利）
     const textX = bx + badgeR + 8;
-    ctx.textAlign = 'left';
-    ctx.fillStyle = 'rgba(56, 36, 8, 0.86)';
+    const titleStr = '抓宠大作战 · CATCHPET';
+    const subStr = `${card.serialNumber || '001/165 ★'} · 63×88mm`;
+    ctx.save();
     ctx.font = `800 8.5px ${FONT_STACK}`;
-    ctx.fillText('抓宠大作战 · CATCHPET', textX, by - 5.5);
-
-    ctx.fillStyle = 'rgba(72, 46, 12, 0.72)';
+    const w1 = ctx.measureText(titleStr).width;
     ctx.font = `700 7.2px ${MONO_STACK}`;
-    ctx.fillText(`${card.serialNumber || '001/165 ★'} · 63×88mm`, textX, by + 6.5);
+    const w2 = ctx.measureText(subStr).width;
+    const pillW = Math.max(w1, w2) + 14;
+    const pillH = 26;
+    roundPath(ctx, textX - 5, by - pillH * 0.5, pillW, pillH, 7);
+    ctx.fillStyle = isBrightBg ? 'rgba(255, 250, 236, 0.72)' : 'rgba(8, 13, 28, 0.56)';
+    ctx.fill();
+    ctx.strokeStyle = isBrightBg ? 'rgba(182, 136, 48, 0.34)' : 'rgba(255, 226, 138, 0.28)';
+    ctx.lineWidth = 0.7;
+    ctx.stroke();
+
+    ctx.textAlign = 'left';
+    ctx.fillStyle = primaryTextInk;
+    ctx.font = `800 8.5px ${FONT_STACK}`;
+    ctx.fillText(titleStr, textX + 2, by - 5.5);
+
+    ctx.fillStyle = secondaryTextInk;
+    ctx.font = `700 7.2px ${MONO_STACK}`;
+    ctx.fillText(subStr, textX + 2, by + 6.5);
+    ctx.restore();
 
     const showQR = card.showBackQRCode !== false;
     if (showQR) {
@@ -1448,7 +1640,7 @@ export function renderCardBackToCanvas(canvas, card, cutoutImg = null, scale = 2
       roundPath(ctx, qx, qy, qSize, qSize, 6);
       ctx.fillStyle = 'rgba(250, 247, 238, 0.96)';
       ctx.fill();
-      ctx.strokeStyle = 'rgba(138, 96, 22, 0.55)';
+      ctx.strokeStyle = isBrightBg ? 'rgba(138, 96, 22, 0.55)' : 'rgba(255, 226, 138, 0.65)';
       ctx.lineWidth = 1;
       ctx.stroke();
 

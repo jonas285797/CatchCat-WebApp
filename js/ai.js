@@ -1,4 +1,82 @@
-import { BREED_QUICK_PICKS } from './presets.js?v=20261127c';
+import {
+  BREED_QUICK_PICKS,
+  inferPetMoodProfile,
+  resolveSmartBackgroundForPet
+} from './presets.js?v=20261128a';
+
+const moodMetricsCache = new WeakMap();
+
+export function analyzeCutoutMoodMetrics(imgEl) {
+  if (!imgEl || !(imgEl.naturalWidth || imgEl.width)) return null;
+  if (moodMetricsCache.has(imgEl)) return moodMetricsCache.get(imgEl);
+  try {
+    const S = 96;
+    const iw = imgEl.naturalWidth || imgEl.width;
+    const ih = imgEl.naturalHeight || imgEl.height;
+    const scale = Math.min(1, S / Math.max(iw, ih));
+    const sw = Math.max(8, Math.round(iw * scale));
+    const sh = Math.max(8, Math.round(ih * scale));
+    const c = document.createElement('canvas');
+    c.width = sw;
+    c.height = sh;
+    const ctx = c.getContext('2d', { willReadFrequently: true });
+    ctx.drawImage(imgEl, 0, 0, sw, sh);
+    const d = ctx.getImageData(0, 0, sw, sh).data;
+
+    let minX = sw, minY = sh, maxX = -1, maxY = -1;
+    let opaque = 0, warm = 0, pastel = 0, dark = 0;
+    for (let y = 0; y < sh; y += 1) {
+      for (let x = 0; x < sw; x += 1) {
+        const idx = (y * sw + x) * 4;
+        if (d[idx + 3] <= 28) continue;
+        opaque += 1;
+        if (x < minX) minX = x;
+        if (y < minY) minY = y;
+        if (x > maxX) maxX = x;
+        if (y > maxY) maxY = y;
+
+        const r = d[idx], g = d[idx + 1], b = d[idx + 2];
+        const mx = Math.max(r, g, b), mn = Math.min(r, g, b);
+        const l = (r + g + b) / 3;
+        const sat = mx === 0 ? 0 : (mx - mn) / mx;
+        if (l < 66) dark += 1;
+        else if (l > 192 && sat < 0.24) pastel += 1;
+        else if (sat > 0.36 && r >= g && r > b) warm += 1;
+      }
+    }
+    if (opaque < 12 || maxX < minX || maxY < minY) {
+      moodMetricsCache.set(imgEl, null);
+      return null;
+    }
+    const trimW = Math.max(1, maxX - minX + 1);
+    const trimH = Math.max(1, maxY - minY + 1);
+    const metrics = {
+      trimAspect: trimW / trimH,
+      solidity: opaque / (trimW * trimH),
+      warmRatio: warm / opaque,
+      pastelRatio: pastel / opaque,
+      darkRatio: dark / opaque
+    };
+    moodMetricsCache.set(imgEl, metrics);
+    return metrics;
+  } catch {
+    return null;
+  }
+}
+
+function attachMoodMetadata(profile, imgEl, visionMood = '') {
+  if (!profile) return profile;
+  const metrics = analyzeCutoutMoodMetrics(imgEl);
+  const { mood, label, reason } = inferPetMoodProfile({ ...profile, petMood: 'auto', visionMood }, metrics);
+  const suggestedBgId = resolveSmartBackgroundForPet({ ...profile, petMood: mood, backgroundStyle: 'auto' }, metrics);
+  return {
+    ...profile,
+    petMood: mood,
+    moodLabel: label,
+    moodReason: reason,
+    suggestedBgId
+  };
+}
 
 /**
  * CatchCat Web 端云混合智能识宠引擎
@@ -369,7 +447,7 @@ export async function analyzePetSmart(cutoutImgEl, options = {}) {
     hintBreed = ''
   } = options;
 
-  const fallback = localAnalyzeCutout(cutoutImgEl, hintSpecies, hintBreed);
+  const fallback = attachMoodMetadata(localAnalyzeCutout(cutoutImgEl, hintSpecies, hintBreed), cutoutImgEl);
 
   // 若用户在抠图弹窗内直接点选了特定品种按钮，直接使用精准预设档案
   if (hintBreed && hintBreed.trim()) {
@@ -404,7 +482,7 @@ export async function analyzePetSmart(cutoutImgEl, options = {}) {
 
   // 若用户明确选了狗狗但模型偶然回传奶牛猫字样，兜底修正为本地狗狗判断
   if (hintSpecies === 'dog' && !looksDogByName && json.species !== 'dog') {
-    return localAnalyzeCutout(cutoutImgEl, 'dog', '');
+    return attachMoodMetadata(localAnalyzeCutout(cutoutImgEl, 'dog', ''), cutoutImgEl, json.mood);
   }
 
   const shortName = cleanBreed.replace(/\(.*?\)/g, '');
@@ -413,7 +491,7 @@ export async function analyzePetSmart(cutoutImgEl, options = {}) {
 
   if (speciesIsDog) {
     const dogMeta = enrichDogMetadata(cleanBreed, json.coatPattern);
-    return {
+    return attachMoodMetadata({
       species: 'dog',
       name: shortName,
       breedName: cleanBreed,
@@ -427,10 +505,10 @@ export async function analyzePetSmart(cutoutImgEl, options = {}) {
       attackName: dogMeta.attackName,
       attackDamage: 170,
       flavorText: json.reasoning || fallback.flavorText
-    };
+    }, cutoutImgEl, json.mood);
   }
 
-  return {
+  return attachMoodMetadata({
     species: json.species || fallback.species || 'cat',
     name: shortName,
     breedName: cleanBreed,
@@ -444,5 +522,5 @@ export async function analyzePetSmart(cutoutImgEl, options = {}) {
     attackName: fallback.attackName,
     attackDamage: fallback.attackDamage,
     flavorText: json.reasoning || fallback.flavorText
-  };
+  }, cutoutImgEl, json.mood);
 }

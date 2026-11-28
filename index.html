@@ -20,7 +20,7 @@
     }
   }
   </script>
-  <link rel="stylesheet" href="styles.css?v=20261127c">
+  <link rel="stylesheet" href="styles.css?v=20261128a">
 </head>
 <body>
   <div class="app-shell">
@@ -280,9 +280,21 @@
 
               <!-- 2. 背景 -->
               <div class="axis-pane" id="pane-background">
+                <div class="sub-block" style="margin-bottom:10px;">
+                  <div class="pane-head" style="margin-bottom:6px;">
+                    <h2>性格姿态智能贴合（前端+卡背联动）</h2>
+                    <span id="mood-match-hint">智能识别中</span>
+                  </div>
+                  <div class="segmented" id="pet-mood-segment">
+                    <button type="button" data-mood="auto" class="is-active">✨ 智能</button>
+                    <button type="button" data-mood="energetic">⚡ 活泼</button>
+                    <button type="button" data-mood="serene">🌸 文静</button>
+                    <button type="button" data-mood="mystic">🌙 酷飒</button>
+                  </div>
+                </div>
                 <div class="pane-head">
-                  <h2>画框主题场景</h2>
-                  <span id="bg-current-label">星云深空</span>
+                  <h2>画框与全幅卡背主题（15 套炫彩）</h2>
+                  <span id="bg-current-label">炽阳流金</span>
                 </div>
                 <div class="swatch-grid" id="background-grid"></div>
               </div>
@@ -879,7 +891,7 @@
   <!-- 全局轻提示 -->
   <div class="toast" id="app-toast" role="status" aria-live="polite" hidden></div>
 
-  <script type="module" src="js/app.js?v=20261127c"></script>
+  <script type="module" src="js/app.js?v=20261128a"></script>
 </body>
 </html>
 

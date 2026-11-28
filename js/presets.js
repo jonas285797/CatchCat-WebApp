@@ -18,14 +18,32 @@ export const BORDER_PRESETS = [
 ];
 
 export const BACKGROUND_PRESETS = [
-  { id: 'auto', name: '智能场景', desc: '按主子属性配景', colors: ['#187be0', '#f7b922', '#fff080'], glyph: '✨', bright: true },
-  { id: 'sunburstArena', name: '烈日光环', desc: '金橙放射斗技光芒', colors: ['#1674e0', '#ffc42b', '#fff494'], glyph: '☀', bright: true },
-  { id: 'emeraldForest', name: '翠林秘境', desc: '晨雾竹影草木光晕', colors: ['#0d4239', '#11ac7b', '#a8f282'], glyph: '🌿', bright: true },
-  { id: 'cosmosNebula', name: '星云深空', desc: '银河紫蓝轨道星幕', colors: ['#120b3d', '#5c24c2', '#2dc6f5'], glyph: '🪐', bright: false },
-  { id: 'sakuraPastel', name: '春樱粉梦', desc: '奶油粉黛落樱氛围', colors: ['#ffd5e6', '#fa93bf', '#db6ebb'], glyph: '🌸', bright: true },
-  { id: 'flameCanyon', name: '炎狱熔岩', desc: '赤红火星炽烈舞台', colors: ['#3b080d', '#cf2b15', '#ffab28'], glyph: '🔥', bright: false },
-  { id: 'frozenCrystal', name: '冰晶雪域', desc: '凛冬棱冰折射寒光', colors: ['#1d59ad', '#54d0f5', '#ddf8ff'], glyph: '❄', bright: true },
-  { id: 'obsidianStudio', name: '极简暗棚', desc: '棚拍聚光突出毛色', colors: ['#12141a', '#242936', '#101218'], glyph: '◐', bright: false }
+  { id: 'auto', name: '智能随宠', desc: '按姿态气质自动贴合', colors: ['#187be0', '#f7b922', '#ff7ebb'], glyph: '✨', bright: true, mood: 'auto' },
+  // 活泼动感 (energetic)
+  { id: 'solarCelebration', name: '炽阳流金', desc: '盛典琥珀日光跃动射线', colors: ['#ff6a00', '#ffa726', '#fff29e'], glyph: '🌤', bright: true, mood: 'energetic' },
+  { id: 'waveRiderCyan', name: '碧浪疾风', desc: '晴空波导疾速青蓝浪涌', colors: ['#0268d6', '#16b8f3', '#b8f4ff'], glyph: '🌊', bright: true, mood: 'energetic' },
+  { id: 'emeraldGale', name: '翡翠风暴', desc: '疾风翠刃狂涌绿宝石旋涡', colors: ['#042f2a', '#09a87a', '#8affc1'], glyph: '🌪', bright: false, mood: 'energetic' },
+  { id: 'sunburstArena', name: '烈日光环', desc: '金橙放射斗技光芒', colors: ['#1674e0', '#ffc42b', '#fff494'], glyph: '☀', bright: true, mood: 'energetic' },
+  { id: 'rainbowPrismHolo', name: '彩虹流璃', desc: '七彩炫光菱晶折射星雨', colors: ['#ff6ec7', '#ffd644', '#49e5ff'], glyph: '🌈', bright: true, mood: 'energetic' },
+  { id: 'flameCanyon', name: '炎狱熔岩', desc: '赤红火星炽烈舞台', colors: ['#3b080d', '#cf2b15', '#ffab28'], glyph: '🔥', bright: false, mood: 'energetic' },
+  // 文静优雅 (serene)
+  { id: 'silkChampagne', name: '丝绸暖昼', desc: '柔缎暖金流水涟漪氛围', colors: ['#fff5d9', '#f2cf88', '#d39a48'], glyph: '🪷', bright: true, mood: 'serene' },
+  { id: 'sakuraPastel', name: '春樱粉梦', desc: '奶油粉黛落樱氛围', colors: ['#ffd5e6', '#fa93bf', '#db6ebb'], glyph: '🌸', bright: true, mood: 'serene' },
+  { id: 'azurePaperGlow', name: '青金琉璃', desc: '皇家钴蓝金沙诗意典雅', colors: ['#0f2d70', '#1f57c3', '#80b5ff'], glyph: '💠', bright: false, mood: 'serene' },
+  { id: 'frozenCrystal', name: '冰晶雪域', desc: '凛冬棱冰折射寒光', colors: ['#1d59ad', '#54d0f5', '#ddf8ff'], glyph: '❄', bright: true, mood: 'serene' },
+  { id: 'emeraldForest', name: '翠林秘境', desc: '晨雾竹影草木光晕', colors: ['#0d4239', '#11ac7b', '#a8f282'], glyph: '🌿', bright: true, mood: 'serene' },
+  // 高冷酷飒 (mystic)
+  { id: 'cyberNeonViolet', name: '电光幻紫', desc: '霓虹紫品夜幕棱镜星流', colors: ['#15082e', '#6f22d2', '#ff47b8'], glyph: '⚡', bright: false, mood: 'mystic' },
+  { id: 'abyssStarlight', name: '深渊星眸', desc: '午夜幽蓝双星轨道凝视', colors: ['#050a1f', '#143266', '#46d8ff'], glyph: '👁', bright: false, mood: 'mystic' },
+  { id: 'cosmosNebula', name: '星云深空', desc: '银河紫蓝轨道星幕', colors: ['#120b3d', '#5c24c2', '#2dc6f5'], glyph: '🪐', bright: false, mood: 'mystic' },
+  { id: 'obsidianStudio', name: '极简暗棚', desc: '轻烟雾霭聚光突出毛色', colors: ['#12141a', '#242936', '#101218'], glyph: '◐', bright: false, mood: 'mystic' }
+];
+
+export const PET_MOOD_PRESETS = [
+  { id: 'auto', label: '智能识别', emoji: '✨', badge: '姿态+AI自动分析' },
+  { id: 'energetic', label: '活泼好动', emoji: '⚡', badge: '适配炫彩动感场景' },
+  { id: 'serene', label: '文静优雅', emoji: '🌸', badge: '适配柔光丝绸雅景' },
+  { id: 'mystic', label: '高冷酷飒', emoji: '🌙', badge: '适配深邃霓虹夜幕' }
 ];
 
 export const FX_PRESETS = [
@@ -130,7 +148,8 @@ export const SAMPLE_CARDS = [
     locationName: '抓宠大作战 示范馆',
     cutoutSrc: 'assets/cat-orange.png',
     borderStyle: 'blackObsidian',
-    backgroundStyle: 'cosmosNebula',
+    backgroundStyle: 'solarCelebration',
+    petMood: 'energetic',
     fxPreset: 'crackedIce',
     badgeIcon: 'crown',
     foilIntensity: 1.15,
@@ -164,7 +183,8 @@ export const SAMPLE_CARDS = [
     locationName: '抓宠大作战 示范馆',
     cutoutSrc: 'assets/cat-lihua.png',
     borderStyle: 'platinumEx',
-    backgroundStyle: 'emeraldForest',
+    backgroundStyle: 'emeraldGale',
+    petMood: 'energetic',
     fxPreset: 'speedBlades',
     badgeIcon: 'bolt',
     foilIntensity: 1.05,
@@ -198,7 +218,8 @@ export const SAMPLE_CARDS = [
     locationName: '抓宠大作战 示范馆',
     cutoutSrc: 'assets/cat-cow.png',
     borderStyle: 'prismaticRainbow',
-    backgroundStyle: 'obsidianStudio',
+    backgroundStyle: 'cyberNeonViolet',
+    petMood: 'mystic',
     fxPreset: 'psychicOrbit',
     badgeIcon: 'moon',
     foilIntensity: 1.2,
@@ -232,7 +253,8 @@ export const SAMPLE_CARDS = [
     locationName: '抓宠大作战 示范馆',
     cutoutSrc: 'assets/cat-shades.png',
     borderStyle: 'classicGold',
-    backgroundStyle: 'flameCanyon',
+    backgroundStyle: 'abyssStarlight',
+    petMood: 'mystic',
     fxPreset: 'cosmosSwirl',
     badgeIcon: 'diamond',
     foilIntensity: 1.25,
@@ -271,4 +293,102 @@ export const DOG_SNACKS = [
   { id: 'cheese_roll', name: '芝士鸡肉卷', img: 'assets/snacks/snack_cheese_roll.png', tag: 'HP+20', hpBonus: 20, exBoost: 10, tone: 'amber' },
   { id: 'carrot', name: '香脆胡萝卜', img: 'assets/snacks/snack_carrot.png', tag: 'HP+10', hpBonus: 10, exBoost: 8, tone: 'jade' }
 ];
+
+const ENERGETIC_KW = ['飞盘', '跑酷', '永动机', '奔', '跳', '飞扑', '冲刺', '太阳', '撒欢', '追', '闹', '皮', '电臀', '干饭', '边牧', '柯基', '哈士奇', '柴犬', '金毛', '橘猫', '狸花', '虎斑', '活泼', '好动', '顽皮', '好奇'];
+const SERENE_KW = ['温柔', '呼噜', '晒午阳', '打盹', '安静', '恬静', '仙女', '绅士', '暖被窝', '发呆', '甜', '舒缓', '淑女', '睡觉', '守门', '贴贴', '学霸', '沉稳', '布偶', '银渐层', '金渐层', '蓝猫', '折耳', '狮子猫', '萨摩耶', '比熊', '龙猫', '文静', '优雅', '呆萌'];
+const MYSTIC_KW = ['高冷', '傲娇', '暗影', '夜瞳', '保镖', '神秘', '侦探', '独行', '教父', '墨镜', '酷', '玄猫', '黑猫', '暹罗', '无毛', '德文', '霸总'];
+
+export function inferPetMoodProfile(input = {}, trimMetrics = null) {
+  const explicitMood = input.petMood;
+  if (explicitMood === 'energetic' || explicitMood === 'serene' || explicitMood === 'mystic') {
+    const preset = PET_MOOD_PRESETS.find((m) => m.id === explicitMood) || PET_MOOD_PRESETS[1];
+    return { mood: explicitMood, label: preset.label, reason: preset.badge, explicit: true };
+  }
+
+  let energeticScore = 0;
+  let sereneScore = 0;
+  let mysticScore = 0;
+
+  if (input.visionMood === 'energetic') energeticScore += 3.5;
+  else if (input.visionMood === 'serene') sereneScore += 3.5;
+  else if (input.visionMood === 'mystic') mysticScore += 3.5;
+
+  if (trimMetrics) {
+    const { solidity = 0.62, trimAspect = 1.0, warmRatio = 0, pastelRatio = 0, darkRatio = 0 } = trimMetrics;
+    if (solidity < 0.56 || trimAspect >= 1.24 || trimAspect <= 0.60) energeticScore += 2.2;
+    else if (solidity >= 0.65 && trimAspect >= 0.78 && trimAspect <= 1.15) sereneScore += 2.1;
+    if (warmRatio > 0.24) energeticScore += 1.2;
+    if (pastelRatio > 0.35) sereneScore += 1.3;
+    if (darkRatio > 0.44) mysticScore += 2.0;
+  }
+
+  const hay = [
+    input.breedName, input.personalityTag, input.hobbyTag,
+    input.abilityName, input.attackName, input.flavorText, input.coatPattern
+  ].filter(Boolean).join(' ');
+
+  ENERGETIC_KW.forEach((kw) => { if (hay.includes(kw)) energeticScore += 1.2; });
+  SERENE_KW.forEach((kw) => { if (hay.includes(kw)) sereneScore += 1.25; });
+  MYSTIC_KW.forEach((kw) => { if (hay.includes(kw)) mysticScore += 1.45; });
+
+  if (input.energyType === 'swift') energeticScore += 1.4;
+  else if (input.energyType === 'food') energeticScore += 0.9;
+  else if (input.energyType === 'charm' || input.energyType === 'normal') sereneScore += 1.1;
+  else if (input.energyType === 'dark' || input.energyType === 'brawl') mysticScore += 1.5;
+
+  let mood = 'energetic';
+  if (mysticScore > energeticScore && mysticScore >= sereneScore && mysticScore >= 2.2) {
+    mood = 'mystic';
+  } else if (sereneScore > energeticScore) {
+    mood = 'serene';
+  }
+
+  const preset = PET_MOOD_PRESETS.find((m) => m.id === mood) || PET_MOOD_PRESETS[1];
+  const reason = mood === 'energetic'
+    ? (trimMetrics && (trimMetrics.solidity < 0.56 || trimMetrics.trimAspect >= 1.24) ? '动态舒展姿态 · 活泼元气' : '活泼好动气质 · 炫彩适配')
+    : mood === 'serene'
+      ? (trimMetrics && trimMetrics.solidity >= 0.65 ? '乖巧端坐仪态 · 文静优雅' : '温婉恬静气质 · 柔光适配')
+      : '沉稳深邃毛色 · 高冷酷飒';
+
+  return { mood, label: preset.label, reason, explicit: false };
+}
+
+export function resolveSmartBackgroundForPet(card = {}, trimMetrics = null) {
+  if (card.backgroundStyle && card.backgroundStyle !== 'auto') {
+    const exists = BACKGROUND_PRESETS.some((b) => b.id === card.backgroundStyle);
+    if (exists) return card.backgroundStyle;
+  }
+
+  const { mood } = inferPetMoodProfile(card, trimMetrics);
+  const pools = {
+    energetic: {
+      swift: ['emeraldGale', 'waveRiderCyan'],
+      food: ['solarCelebration', 'sunburstArena', 'flameCanyon'],
+      brawl: ['rainbowPrismHolo', 'flameCanyon'],
+      charm: ['rainbowPrismHolo', 'solarCelebration'],
+      default: ['solarCelebration', 'waveRiderCyan', 'sunburstArena', 'rainbowPrismHolo']
+    },
+    serene: {
+      charm: ['sakuraPastel', 'silkChampagne'],
+      normal: ['frozenCrystal', 'azurePaperGlow'],
+      food: ['silkChampagne', 'emeraldForest'],
+      swift: ['emeraldForest', 'azurePaperGlow'],
+      default: ['silkChampagne', 'sakuraPastel', 'azurePaperGlow', 'frozenCrystal']
+    },
+    mystic: {
+      brawl: ['cyberNeonViolet', 'cosmosNebula'],
+      dark: ['abyssStarlight', 'cyberNeonViolet', 'obsidianStudio'],
+      default: ['abyssStarlight', 'cyberNeonViolet', 'cosmosNebula']
+    }
+  };
+
+  const bucket = pools[mood] || pools.energetic;
+  const list = bucket[card.energyType] || bucket.default;
+  const seedStr = `${card.name || ''}${card.breedName || ''}${card.coatPattern || ''}`;
+  let hash = 0;
+  for (let i = 0; i < seedStr.length; i += 1) {
+    hash = (hash * 31 + seedStr.charCodeAt(i)) >>> 0;
+  }
+  return list[hash % list.length] || 'solarCelebration';
+}
 

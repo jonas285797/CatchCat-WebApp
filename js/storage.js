@@ -1,4 +1,4 @@
-import { SAMPLE_CARDS } from './presets.js?v=20261127c';
+import { SAMPLE_CARDS } from './presets.js?v=20261128a';
 
 const DB_NAME = 'CatchCatStudioDB';
 const DB_VERSION = 1;
@@ -27,18 +27,18 @@ export async function loadAllCards() {
       req.onsuccess = () => resolve(req.result || []);
       req.onerror = () => reject(req.error);
     });
-    const seededV3 = localStorage.getItem('CatchCat_Web_SeededV3') === '1';
-    if (rows.length > 0 && seededV3) {
+    const seededV4 = localStorage.getItem('CatchCat_Web_SeededV4') === '1';
+    if (rows.length > 0 && seededV4) {
       return rows.sort((a, b) => (b.updatedAt || b.createdAt || 0) - (a.updatedAt || a.createdAt || 0));
     }
-    // 升级 V3 时更新官方示范卡（保留用户自建卡不受影响）
+    // 升级 V4 时更新官方示范卡为 15 套炫彩背景 + 智能性格贴合（保留用户自建卡不受影响）
     await new Promise((resolve, reject) => {
       const tx = db.transaction(STORE_CARDS, 'readwrite');
       const store = tx.objectStore(STORE_CARDS);
       const existingById = new Map(rows.map((r) => [r.id, r]));
       for (const s of SAMPLE_CARDS) {
         const prev = existingById.get(s.id);
-        if (!prev || !prev.cardBackStyle || prev.locationName === 'CatchCat 示范馆') {
+        if (!prev || !prev.cardBackStyle || !prev.petMood || prev.locationName === '抓宠大作战 示范馆' || prev.locationName === 'CatchCat 示范馆') {
           store.put({ ...s });
         }
       }
@@ -48,6 +48,7 @@ export async function loadAllCards() {
     localStorage.setItem('CatchCat_Web_SeededV1', '1');
     localStorage.setItem('CatchCat_Web_SeededV2', '1');
     localStorage.setItem('CatchCat_Web_SeededV3', '1');
+    localStorage.setItem('CatchCat_Web_SeededV4', '1');
     const merged = await new Promise((resolve, reject) => {
       const tx = db.transaction(STORE_CARDS, 'readonly');
       const req = tx.objectStore(STORE_CARDS).getAll();

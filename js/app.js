@@ -10,20 +10,22 @@ import {
   SAMPLE_CARDS,
   CAT_SNACKS,
   DOG_SNACKS,
-  resolveAdaptiveFX
-} from './presets.js?v=20261127c';
+  resolveAdaptiveFX,
+  inferPetMoodProfile
+} from './presets.js?v=20261128a';
 import {
   loadImageCached,
   getEnergyConfig,
   getCardDisplayTitle,
+  resolveEffectiveBgId,
   renderCardFrontToCanvas,
   renderCardBackToCanvas,
   exportCard4KBlob
-} from './cardRenderer.js?v=20261127c';
-import { WebCutoutEngine, preloadNeuralMatting } from './cutout.js?v=20261127c';
-import { getAISettings, saveAISettings, analyzePetSmart } from './ai.js?v=20261127c';
-import { loadAllCards, upsertCard, removeCard, getTrainerLevelInfo, grantTrainerXP } from './storage.js?v=20261127c';
-import { Card3DShowcase } from './showcase3d.js?v=20261127c';
+} from './cardRenderer.js?v=20261128a';
+import { WebCutoutEngine, preloadNeuralMatting } from './cutout.js?v=20261128a';
+import { getAISettings, saveAISettings, analyzePetSmart, analyzeCutoutMoodMetrics } from './ai.js?v=20261128a';
+import { loadAllCards, upsertCard, removeCard, getTrainerLevelInfo, grantTrainerXP } from './storage.js?v=20261128a';
+import { Card3DShowcase } from './showcase3d.js?v=20261128a';
 import {
   getCloudSession,
   registerCloudAccount,
@@ -32,7 +34,7 @@ import {
   pushCardToCloud,
   deleteCardFromCloud,
   syncCardsBidirectional
-} from './cloudSync.js?v=20261127c';
+} from './cloudSync.js?v=20261128a';
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
@@ -155,6 +157,8 @@ const dom = {
   borderLabel: $('#border-current-label'),
   bgGrid: $('#background-grid'),
   bgLabel: $('#bg-current-label'),
+  petMoodBtns: $$('#pet-mood-segment button[data-mood]'),
+  moodMatchHint: $('#mood-match-hint'),
   foilSlider: $('#foil-intensity-slider'),
   foilVal: $('#foil-intensity-val'),
   fxGrid: $('#fx-grid'),
@@ -369,12 +373,25 @@ function syncControlsFromCurrentCard() {
   const activeBorder = BORDER_PRESETS.find((b) => b.id === (card.borderStyle || 'auto')) || BORDER_PRESETS[0];
   dom.borderLabel.textContent = activeBorder.name;
 
-  // Background swatches
+  // Background swatches & smart mood alignment
   $$('.swatch-card', dom.bgGrid).forEach((el) => {
     el.classList.toggle('is-active', el.dataset.id === (card.backgroundStyle || 'auto'));
   });
+  const metrics = state.activeCutoutImg ? analyzeCutoutMoodMetrics(state.activeCutoutImg) : null;
+  const resolvedBgId = resolveEffectiveBgId(card, state.activeCutoutImg);
+  const resolvedBg = BACKGROUND_PRESETS.find((b) => b.id === resolvedBgId) || BACKGROUND_PRESETS[1];
   const activeBg = BACKGROUND_PRESETS.find((b) => b.id === (card.backgroundStyle || 'auto')) || BACKGROUND_PRESETS[0];
-  dom.bgLabel.textContent = activeBg.name;
+  const isAutoBg = !card.backgroundStyle || card.backgroundStyle === 'auto';
+  dom.bgLabel.textContent = isAutoBg ? `智能 → ${resolvedBg.name}` : activeBg.name;
+
+  const moodInfo = inferPetMoodProfile(card, metrics);
+  const selectedMood = card.petMood || 'auto';
+  dom.petMoodBtns?.forEach((btn) => {
+    btn.classList.toggle('is-active', btn.dataset.mood === selectedMood);
+  });
+  if (dom.moodMatchHint) {
+    dom.moodMatchHint.textContent = `${moodInfo.label} · ${resolvedBg.name}`;
+  }
 
   // FX swatches & foil slider
   const foil = Number(card.foilIntensity ?? 0.72);
@@ -390,7 +407,7 @@ function syncControlsFromCurrentCard() {
   if (dom.studioComboSummary) {
     dom.studioComboSummary.innerHTML = `
       <span>${activeBorder.name}</span>
-      <span>${activeBg.name}</span>
+      <span>${isAutoBg ? resolvedBg.name : activeBg.name}</span>
       <span>${activeFx.name}</span>
     `;
   }
@@ -497,6 +514,15 @@ function buildStaticPalettes() {
       scheduleStudioRender();
     });
     dom.bgGrid.appendChild(btn);
+  });
+
+  dom.petMoodBtns?.forEach((btn) => {
+    btn.addEventListener('click', () => {
+      state.currentCard.petMood = btn.dataset.mood || 'auto';
+      state.currentCard.backgroundStyle = 'auto';
+      syncControlsFromCurrentCard();
+      scheduleStudioRender();
+    });
   });
 
   // 4. FX Swatches
@@ -938,6 +964,7 @@ async function getCardThumbDataUrl(card) {
     card.cutoutSrc?.slice(-36),
     card.borderStyle,
     card.backgroundStyle,
+    card.petMood || 'auto',
     card.fxPreset,
     card.badgeIcon,
     card.foilIntensity,
@@ -1815,6 +1842,8 @@ function bindEvents() {
       id: crypto.randomUUID ? crypto.randomUUID() : `card-${Date.now()}`,
       serialNumber: `${String(state.cards.length + 1).padStart(3, '0')}/165 ★`,
       cutoutSrc: dataUrl,
+      backgroundStyle: runAi ? 'auto' : (state.currentCard.backgroundStyle || 'auto'),
+      petMood: runAi ? 'auto' : (state.currentCard.petMood || 'auto'),
       cardBackStyle: state.currentCard.cardBackStyle || 'fullArtPet',
       cardBackOrientation: state.currentCard.cardBackOrientation || 'auto',
       subjectOffsetX: 0,
@@ -1830,8 +1859,9 @@ function bindEvents() {
     renderStudioNow();
     await switchTab('studio');
 
+    let matchHintNote = '';
     if (runAi && img) {
-      showToast('抠图已上线，正在智能鉴定品种、性格与爱好…', 3000);
+      showToast('抠图已上线，正在智能鉴定品种、性格与炫彩场景…', 3000);
       const aiMeta = await analyzePetSmart(img, {
         originalEl: state.cutoutOriginalImg || img,
         hintSpecies: state.cutoutHintSpecies,
@@ -1852,6 +1882,13 @@ function bindEvents() {
         state.currentCard.attackName = aiMeta.attackName || state.currentCard.attackName;
         state.currentCard.attackDamage = aiMeta.attackDamage || state.currentCard.attackDamage;
         state.currentCard.flavorText = aiMeta.flavorText || state.currentCard.flavorText;
+        state.currentCard.petMood = aiMeta.petMood || 'auto';
+        state.currentCard.backgroundStyle = 'auto';
+        const matchedBgId = resolveEffectiveBgId(state.currentCard, img);
+        const matchedBgPreset = BACKGROUND_PRESETS.find((b) => b.id === matchedBgId);
+        if (aiMeta.moodLabel && matchedBgPreset) {
+          matchHintNote = ` · 「${aiMeta.moodLabel}」自动贴合「${matchedBgPreset.name}」`;
+        }
       }
     }
 
@@ -1872,7 +1909,7 @@ function bindEvents() {
     renderStudioNow();
 
     const buffNote = buffHp > 0 ? `（含投喂加成 HP+${buffHp}${buffEx >= 15 ? ' · 稀有进阶' : ''}）` : '';
-    showToast(`已鉴定为「${state.currentCard.breedName} · ${state.currentCard.coatPattern}」${buffNote}`);
+    showToast(`已鉴定为「${state.currentCard.breedName} · ${state.currentCard.coatPattern}」${matchHintNote}${buffNote}`, 3400);
   };
 
   dom.btnCutoutUseFull.addEventListener('click', () => {
