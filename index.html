@@ -20,55 +20,30 @@
     }
   }
   </script>
-  <link rel="stylesheet" href="styles.css?v=20261128c">
+  <link rel="stylesheet" href="styles.css?v=20261128d">
 </head>
 <body>
   <div class="app-shell">
-    <!-- 顶部工作室导航栏（桌面端切页 + 全局传图/云账号入口；手机端保留轻便顶栏，主导航归到底部拇指区） -->
+    <!-- 顶部仅桌面端保留 4 栏目纯切页导航；全面移除同步账号、设置与制作传图栏 -->
     <header class="topbar">
-      <div class="brand">
-        <img class="brand__icon" src="assets/app-icon.png" alt="CatchPet 抓宠大作战" width="34" height="34">
-        <div class="brand__meta">
-          <strong class="brand__name">抓宠大作战</strong>
-          <span class="brand__tag">CATCHPET 4K STUDIO · 63×88mm</span>
-        </div>
-      </div>
-
       <nav class="desktop-tabs" aria-label="主功能切换">
         <button type="button" class="nav-pill is-active" data-tab="capture">
           <span class="nav-pill__dot" aria-hidden="true"></span>
           抓拍萌宠
         </button>
         <button type="button" class="nav-pill" data-tab="studio">
-          制卡工坊
-        </button>
-        <button type="button" class="nav-pill" data-tab="showcase">
-          3D · 4K 展厅
+          卡片定制
         </button>
         <button type="button" class="nav-pill" data-tab="dex">
           萌宠图鉴 <span class="nav-count" id="dex-count-desktop">0</span>
         </button>
+        <button type="button" class="nav-pill" data-tab="profile">
+          喵星档案
+        </button>
       </nav>
-
-      <div class="topbar__actions">
-        <button type="button" class="cloud-auth-pill" id="btn-open-cloud-auth" title="云端账号跨端同步">
-          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.1" aria-hidden="true"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10Z"/></svg>
-          <span id="top-cloud-label">云端登录</span>
-        </button>
-
-        <button type="button" class="btn-chip" id="btn-open-ai-settings" title="云端识宠配置">
-          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9c.26.6.82 1 1.51 1H21a2 2 0 1 1 0 4h-.09c-.69 0-1.25.4-1.51 1Z"/></svg>
-          <span class="hide-sm">识宠引擎</span>
-        </button>
-
-        <label class="btn-primary-sm upload-trigger" for="photo-file-input">
-          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.3" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
-          传图制卡
-        </label>
-        <input id="photo-file-input" type="file" accept="image/*" hidden>
-        <input id="camera-fallback-input" type="file" accept="image/*" capture="environment" hidden>
-      </div>
     </header>
+    <input id="photo-file-input" type="file" accept="image/*" hidden>
+    <input id="camera-fallback-input" type="file" accept="image/*" capture="environment" hidden>
 
     <!-- 主内容滚动视图容器（各 Tab 独立视图，保持干净无串扰） -->
     <main class="workspace" id="workspace">
@@ -97,10 +72,6 @@
                 <span id="capture-buff-text">已投喂 HP+0</span>
               </div>
               <div class="capture-hud-right">
-                <div class="capture-pill capture-pill--lv" id="capture-level-pill">
-                  <span class="lv-dot" aria-hidden="true">✦</span>
-                  <strong id="capture-lv-text">Lv.1</strong>
-                </div>
                 <button type="button" class="capture-torch-btn" id="btn-toggle-torch" title="开关补光灯" hidden>
                   <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.1" aria-hidden="true"><path d="M13 2 4 14h7l-1 8 10-12h-7l0-8Z"/></svg>
                 </button>
@@ -214,9 +185,9 @@
                 </div>
               </div>
 
-              <!-- 舞台核心动作舱（手机端竖排于右侧，桌面端横排于底部） -->
+              <!-- 舞台核心动作舱（3D 展厅暂隐藏保留代码，展示存入图鉴 & 4K 保存） -->
               <div class="stage-actions">
-                <button type="button" class="btn-accent-3d" id="btn-enter-3d">
+                <button type="button" class="btn-accent-3d" id="btn-enter-3d" hidden>
                   <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.1" aria-hidden="true"><path d="M12 2 3 7v10l9 5 9-5V7l-9-5Z"/><path d="M12 22V12M21 7l-9 5M3 7l9 5"/></svg>
                   <span class="desk-only">3D 展厅</span>
                   <span class="mob-only">3D · 4K<br>展厅鉴赏</span>
@@ -543,9 +514,7 @@
       <section class="view" id="view-dex" aria-label="萌宠图鉴">
         <div class="dex-wrap">
           <div class="dex-header">
-            <div class="dex-header-spacer" aria-hidden="true"></div>
             <h2>萌宠图鉴</h2>
-            <button type="button" class="dex-top-auth-pill" id="btn-dex-cloud-sync">云端登录</button>
           </div>
 
           <!-- 收集仪表盘（1:1 复刻 iOS vibrantCollectionDashboard · Liquid Glass 零阴影） -->
@@ -655,9 +624,98 @@
           <div class="dex-grid" id="dex-grid"></div>
         </div>
       </section>
+
+      <!-- ═══════════════════════ VIEW 4: 喵星档案（账号 · 云端同步 · 合规中心 · 1:1 对齐 iOS） ═══════════════════════ -->
+      <section class="view" id="view-profile" aria-label="喵星档案">
+        <div class="profile-wrap">
+          <div class="dex-header">
+            <h2>喵星档案</h2>
+          </div>
+
+          <div class="profile-identity-card">
+            <div class="profile-identity-top">
+              <div class="profile-avatar" aria-hidden="true">🐾</div>
+              <div class="profile-identity-meta">
+                <div class="profile-name-row">
+                  <strong id="profile-nickname">萌宠训练家</strong>
+                  <span class="profile-channel-pill" id="profile-channel-pill">本地访客</span>
+                </div>
+                <p id="profile-account-line">登录抓宠云账号即可与 iOS 端实时互通全部闪卡</p>
+              </div>
+            </div>
+            <div class="profile-identity-actions">
+              <button type="button" class="btn-jade profile-primary-btn" id="btn-profile-auth">登录 / 注册云端账号</button>
+              <button type="button" class="btn-chip" id="btn-profile-sync" hidden>立即双向同步</button>
+            </div>
+          </div>
+
+          <div class="profile-stats-grid">
+            <div class="profile-stat-card">
+              <strong id="profile-stat-cards">0 张</strong>
+              <span>抓拍全息闪卡</span>
+            </div>
+            <div class="profile-stat-card">
+              <strong id="profile-stat-rarity">0 / 5 阶</strong>
+              <span>已集稀有品阶</span>
+            </div>
+            <div class="profile-stat-card">
+              <strong id="profile-stat-pct">0%</strong>
+              <span id="profile-stat-unlocked">已点亮 0/64 品种</span>
+            </div>
+            <div class="profile-stat-card">
+              <strong id="profile-stat-cloud">仅本地保存</strong>
+              <span>云端存证状态</span>
+            </div>
+          </div>
+
+          <div class="profile-section-card">
+            <div class="profile-section-head">工具与本地备份</div>
+            <button type="button" class="profile-row-btn" id="btn-profile-ai-settings">
+              <span>🤖 云端识宠引擎配置</span>
+              <span class="profile-row-arrow">›</span>
+            </button>
+            <button type="button" class="profile-row-btn" id="btn-backup-export">
+              <span>💾 导出本机卡册 JSON 备份</span>
+              <span class="profile-row-arrow">›</span>
+            </button>
+            <label class="profile-row-btn" for="backup-file-input">
+              <span>📥 从备份 JSON 恢复卡册</span>
+              <span class="profile-row-arrow">›</span>
+            </label>
+            <input id="backup-file-input" type="file" accept="application/json" hidden>
+          </div>
+
+          <div class="profile-section-card">
+            <div class="profile-section-head">合规与隐私公示中心</div>
+            <button type="button" class="profile-row-btn" data-legal-tab="privacy">
+              <span>🛡️ 《隐私政策》（1200 米街道级脱敏 · 未成年人保护）</span>
+              <span class="profile-row-arrow">›</span>
+            </button>
+            <button type="button" class="profile-row-btn" data-legal-tab="terms">
+              <span>📜 《用户服务协议》（照片版权归属 · 娱乐性质声明）</span>
+              <span class="profile-row-arrow">›</span>
+            </button>
+            <button type="button" class="profile-row-btn" data-legal-tab="collection">
+              <span>📋 《已收集个人信息清单》</span>
+              <span class="profile-row-arrow">›</span>
+            </button>
+            <button type="button" class="profile-row-btn" data-legal-tab="sdkAndAi">
+              <span>✨ 《第三方服务与 AI 生成标识声明》</span>
+              <span class="profile-row-arrow">›</span>
+            </button>
+          </div>
+
+          <div class="profile-danger-zone" id="profile-signedin-actions" hidden>
+            <button type="button" class="profile-logout-btn" id="btn-profile-logout">退出当前账号</button>
+            <button type="button" class="profile-delete-btn" id="btn-profile-delete">注销账号并清除云端数据</button>
+          </div>
+
+          <p class="ai-explicit-badge">✨ 部分品种识别、技能文案与抠图由 AI 辅助生成，仅供娱乐参考</p>
+        </div>
+      </section>
     </main>
 
-    <!-- 手机端底部原生态浮动 TabBar（4 个核心大入口） -->
+    <!-- 底部原生态浮动 TabBar（与 iOS 端 1:1 对齐 4 个核心入口） -->
     <nav class="mobile-tabbar" aria-label="底部主导航">
       <button type="button" class="m-tab is-active" data-tab="capture">
         <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 8V6a2 2 0 0 1 2-2h2M16 4h2a2 2 0 0 1 2 2v2M4 16v2a2 2 0 0 0 2 2h2M16 20h2a2 2 0 0 0 2-2v-2"/><circle cx="12" cy="12" r="3"/></svg>
@@ -665,15 +723,15 @@
       </button>
       <button type="button" class="m-tab" data-tab="studio">
         <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 19 10-10"/><path d="M15 4v3M13.5 5.5h3"/><path d="M9 4v2M8 5h2"/><path d="M19 9v2M18 10h2"/></svg>
-        <span>制卡工坊</span>
-      </button>
-      <button type="button" class="m-tab" data-tab="showcase">
-        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 2 3 7v10l9 5 9-5V7l-9-5Z"/><path d="M12 22V12M21 7l-9 5M3 7l9 5"/></svg>
-        <span>3D 展厅</span>
+        <span>卡片定制</span>
       </button>
       <button type="button" class="m-tab" data-tab="dex">
         <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M5 4.5A1.5 1.5 0 0 1 6.5 3H19v18H6.5A1.5 1.5 0 0 1 5 19.5v-15Z"/><path d="M8 3v18"/><path d="M11 8h5M11 12h4"/></svg>
         <span>萌宠图鉴</span>
+      </button>
+      <button type="button" class="m-tab" data-tab="profile">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-3.8 3.6-6 8-6s8 2.2 8 6"/></svg>
+        <span>喵星档案</span>
       </button>
     </nav>
   </div>
@@ -791,7 +849,7 @@
         </div>
 
         <div class="inspect-icon-group">
-          <button type="button" class="inspect-circle-btn inspect-circle-btn--cyan" id="btn-inspect-3d" title="进入 3D 亚克力展厅" aria-label="3D 展厅">
+          <button type="button" class="inspect-circle-btn inspect-circle-btn--cyan" id="btn-inspect-3d" title="进入 3D 亚克力展厅" aria-label="3D 展厅" hidden>
             <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2 3 7v10l9 5 9-5V7l-9-5Z"/><path d="M12 22V12M21 7l-9 5M3 7l9 5"/></svg>
           </button>
           <button type="button" class="inspect-circle-btn inspect-circle-btn--amber" id="btn-inspect-edit" title="编辑正背面信息与档案" aria-label="编辑">
@@ -1077,7 +1135,7 @@
   <!-- 全局轻提示 -->
   <div class="toast" id="app-toast" role="status" aria-live="polite" hidden></div>
 
-  <script type="module" src="js/app.js?v=20261128c"></script>
+  <script type="module" src="js/app.js?v=20261128d"></script>
 </body>
 </html>
 

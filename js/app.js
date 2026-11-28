@@ -117,8 +117,23 @@ const dom = {
     capture: $('#view-capture'),
     studio: $('#view-studio'),
     showcase: $('#view-showcase'),
-    dex: $('#view-dex')
+    dex: $('#view-dex'),
+    profile: $('#view-profile')
   },
+  profileNickname: $('#profile-nickname'),
+  profileChannelPill: $('#profile-channel-pill'),
+  profileAccountLine: $('#profile-account-line'),
+  btnProfileAuth: $('#btn-profile-auth'),
+  btnProfileSync: $('#btn-profile-sync'),
+  profileStatCards: $('#profile-stat-cards'),
+  profileStatRarity: $('#profile-stat-rarity'),
+  profileStatPct: $('#profile-stat-pct'),
+  profileStatUnlocked: $('#profile-stat-unlocked'),
+  profileStatCloud: $('#profile-stat-cloud'),
+  btnProfileAiSettings: $('#btn-profile-ai-settings'),
+  profileSignedinActions: $('#profile-signedin-actions'),
+  btnProfileLogout: $('#btn-profile-logout'),
+  btnProfileDelete: $('#btn-profile-delete'),
   dexCountDesktop: $('#dex-count-desktop'),
   btnOpenCloudAuth: $('#btn-open-cloud-auth'),
   topCloudLabel: $('#top-cloud-label'),
@@ -873,9 +888,6 @@ function renderSampleStrip() {
 
 // ═══════════════════════ CAPTURE VIEWFINDER & SNACK FEEDING ═══════════════════════
 function syncCaptureHUD() {
-  const { level } = getTrainerLevelInfo();
-  if (dom.captureLvText) dom.captureLvText.textContent = `Lv.${level}`;
-
   const cfg = getAISettings();
   if (dom.btnCaptureAi) {
     dom.btnCaptureAi.classList.toggle('is-on', !cfg.localOnly);
@@ -1060,6 +1072,8 @@ async function switchTab(tabName) {
     await syncShowcaseCard();
   } else if (tabName === 'dex') {
     await renderDexGrid();
+  } else if (tabName === 'profile') {
+    updateProfileView();
   }
 }
 
@@ -1215,8 +1229,9 @@ function updateDexDashboard() {
   if (dom.dexCloudStatusLine) {
     dom.dexCloudStatusLine.textContent = signedIn
       ? `${sess.user.displayName} · iOS / Web 已互通`
-      : '登录云账号 · iOS / Web 双端互通';
+      : '前往「喵星档案」登录云账号 · 双端互通';
   }
+  updateProfileView();
 }
 
 function updateDexBadgeCount() {
@@ -1656,19 +1671,6 @@ async function renderDexGrid() {
       openCardEditModal(card.id);
     });
 
-    const btn3d = document.createElement('button');
-    btn3d.type = 'button';
-    btn3d.className = 'dex-btn';
-    btn3d.textContent = '3D';
-    btn3d.addEventListener('click', async (e) => {
-      e.stopPropagation();
-      state.currentCard = deepClone(card);
-      await ensureCutoutLoaded(state.currentCard);
-      syncControlsFromCurrentCard();
-      renderStudioNow();
-      await switchTab('showcase');
-    });
-
     const btnDel = document.createElement('button');
     btnDel.type = 'button';
     btnDel.className = 'dex-btn dex-btn--danger';
@@ -1695,7 +1697,6 @@ async function renderDexGrid() {
     });
 
     actions.appendChild(btnEdit);
-    actions.appendChild(btn3d);
     actions.appendChild(btnDel);
     actions.addEventListener('click', (e) => e.stopPropagation());
 
@@ -1848,6 +1849,40 @@ async function saveCardEditModal() {
 }
 
 // ═══════════════════════ CLOUD AUTH & SYNC UI ═══════════════════════
+function updateProfileView() {
+  const sess = getCloudSession();
+  const signedIn = Boolean(sess?.user);
+  const stats = computeDexStats(state.cards);
+  const rarityCount = new Set(state.cards.map((c) => computeCardRarity(c))).size;
+
+  if (dom.profileNickname) {
+    dom.profileNickname.textContent = signedIn ? (sess.user.displayName || sess.user.account) : '萌宠训练家';
+  }
+  if (dom.profileChannelPill) {
+    dom.profileChannelPill.textContent = signedIn ? 'iOS / Web 已互通' : '本地访客';
+    dom.profileChannelPill.classList.toggle('is-online', signedIn);
+  }
+  if (dom.profileAccountLine) {
+    dom.profileAccountLine.textContent = signedIn
+      ? `云端账号：${sess.user.account} · 双端卡册实时同步中`
+      : '登录抓宠云账号即可与 iOS 端实时互通全部闪卡';
+  }
+  if (dom.btnProfileAuth) {
+    dom.btnProfileAuth.textContent = signedIn ? '切换 / 管理云端账号' : '登录 / 注册云端账号';
+  }
+  if (dom.btnProfileSync) {
+    dom.btnProfileSync.hidden = !signedIn;
+  }
+  if (dom.profileSignedinActions) {
+    dom.profileSignedinActions.hidden = !signedIn;
+  }
+  if (dom.profileStatCards) dom.profileStatCards.textContent = `${state.cards.length} 张`;
+  if (dom.profileStatRarity) dom.profileStatRarity.textContent = `${rarityCount} / 5 阶`;
+  if (dom.profileStatPct) dom.profileStatPct.textContent = `${stats.pct}%`;
+  if (dom.profileStatUnlocked) dom.profileStatUnlocked.textContent = `已点亮 ${stats.unlockedCount}/${stats.totalCatalog} 品种`;
+  if (dom.profileStatCloud) dom.profileStatCloud.textContent = signedIn ? '已加密同步' : '仅本地保存';
+}
+
 function refreshCloudSessionUI() {
   const sess = getCloudSession();
   const signedIn = Boolean(sess?.user);
@@ -1856,12 +1891,6 @@ function refreshCloudSessionUI() {
   }
   dom.btnOpenCloudAuth?.classList.toggle('is-signed-in', signedIn);
   if (dom.btnDexCloudSync) {
-    if (signedIn) {
-      const lvl = sess.user.trainerLevel || 1;
-      dom.btnDexCloudSync.innerHTML = `<span class="dex-lvl-avatar">☁</span><span>Lv.${lvl}</span>`;
-    } else {
-      dom.btnDexCloudSync.textContent = '💬 云端登录';
-    }
     dom.btnDexCloudSync.classList.toggle('is-signed-in', signedIn);
   }
   if (dom.authGuestPanel && dom.authSignedInPanel) {
@@ -1869,10 +1898,11 @@ function refreshCloudSessionUI() {
     dom.authSignedInPanel.hidden = !signedIn;
     if (signedIn) {
       dom.authProfileName.textContent = `🐾 ${sess.user.displayName}（${sess.user.account}）`;
-      dom.authProfileMeta.textContent = `Lv.${sess.user.trainerLevel || 1} · Web 与 iOS App 登录同一账号即可双向实时同步萌宠图鉴`;
+      dom.authProfileMeta.textContent = 'Web 与 iOS App 登录同一账号即可双向实时同步萌宠图鉴';
     }
   }
   updateDexBadgeCount();
+  updateProfileView();
 }
 
 function openAuthModal() {
@@ -2649,12 +2679,14 @@ function bindEvents() {
   });
 
   // AI Settings Modal
-  dom.btnOpenAiSettings.addEventListener('click', () => {
+  const openAiSettingsModal = () => {
     const cfg = getAISettings();
     dom.inputVisionUrl.value = cfg.endpoint;
     dom.chkLocalOnly.checked = cfg.localOnly;
     dom.modalAiSettings.hidden = false;
-  });
+  };
+  dom.btnOpenAiSettings?.addEventListener('click', openAiSettingsModal);
+  dom.btnProfileAiSettings?.addEventListener('click', openAiSettingsModal);
   dom.btnCloseAiSettings.addEventListener('click', () => {
     dom.modalAiSettings.hidden = true;
   });
@@ -2990,7 +3022,7 @@ function bindEvents() {
   $('#btn-close-legal')?.addEventListener('click', () => { const m = $('#modal-legal'); if (m) m.hidden = true; });
   $('#btn-legal-done')?.addEventListener('click', () => { const m = $('#modal-legal'); if (m) m.hidden = true; });
 
-  $('#btn-auth-delete-account')?.addEventListener('click', async () => {
+  const deleteCloudAccountAndData = async () => {
     if (!window.confirm('确认注销账号并清除云端同步数据吗？此操作不可撤销（本机未同步的草稿仍保留）。')) return;
     try {
       for (const c of state.cards) {
@@ -2998,11 +3030,20 @@ function bindEvents() {
       }
       logoutCloudAccount();
       refreshCloudSessionUI();
-      dom.modalAuth.hidden = true;
+      if (dom.modalAuth) dom.modalAuth.hidden = true;
       showToast('已注销云端账号并清除云端卡册数据');
     } catch (err) {
       showToast('注销处理失败，请检查网络后重试');
     }
+  };
+  $('#btn-auth-delete-account')?.addEventListener('click', deleteCloudAccountAndData);
+  dom.btnProfileDelete?.addEventListener('click', deleteCloudAccountAndData);
+  dom.btnProfileAuth?.addEventListener('click', openAuthModal);
+  dom.btnProfileSync?.addEventListener('click', () => runCloudSync({ silent: false }));
+  dom.btnProfileLogout?.addEventListener('click', () => {
+    logoutCloudAccount();
+    refreshCloudSessionUI();
+    showToast('已退出云端账号，本机图鉴数据仍安全保留');
   });
 
   const consentKey = 'catchcat.privacy.consent.v1';
